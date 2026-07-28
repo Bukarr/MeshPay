@@ -1,0 +1,6 @@
+{
+  "name": "MeshPay",
+  "description": "MeshPay - Offline P2P Mesh & Remittance Fintech Wallet",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
