@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, Zap, RefreshCw, LogOut, Wifi, WifiOff, AlertTriangle, Lock } from 'lucide-react';
+import { ShieldCheck, Zap, RefreshCw, LogOut, Wifi, WifiOff, AlertTriangle, Lock, Bell } from 'lucide-react';
 import { UserProfile } from '../types';
 
 interface NavbarProps {
@@ -8,6 +8,8 @@ interface NavbarProps {
   isWeakSignal?: boolean;
   tamperAlert?: boolean;
   pendingOfflineCount: number;
+  unreadNotificationCount?: number;
+  onOpenNotifications: () => void;
   onOpenSync: () => void;
   onOpenSettings: () => void;
   onToggleCurrency: () => void;
@@ -21,6 +23,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   isWeakSignal = false,
   tamperAlert = false,
   pendingOfflineCount,
+  unreadNotificationCount = 0,
+  onOpenNotifications,
   onOpenSync,
   onOpenSettings,
   onToggleCurrency,
@@ -39,48 +43,52 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div>
             <div className="flex items-center gap-1.5">
               <h1 className="font-black text-lg tracking-tight text-white">MeshPay</h1>
-              <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
-                !isOnline
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                  : isWeakSignal
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                  : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-              }`}>
-                {!isOnline ? (
-                  <>
-                    <WifiOff className="w-2.5 h-2.5 text-amber-400" />
-                    <span>Store & Forward (Offline)</span>
-                  </>
-                ) : isWeakSignal ? (
-                  <>
-                    <AlertTriangle className="w-2.5 h-2.5 text-amber-400" />
-                    <span>Weak Signal (S&F Active)</span>
-                  </>
-                ) : (
-                  <>
-                    <Wifi className="w-2.5 h-2.5 text-emerald-400" />
-                    <span>Online (Encrypted)</span>
-                  </>
-                )}
-              </span>
+              {(!isOnline || isWeakSignal) && (
+                <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full border flex items-center gap-1 bg-amber-500/20 text-amber-300 border-amber-500/30">
+                  {!isOnline ? (
+                    <>
+                      <WifiOff className="w-2.5 h-2.5 text-amber-400" />
+                      <span>Store & Forward (Offline)</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle className="w-2.5 h-2.5 text-amber-400" />
+                      <span>Weak Signal</span>
+                    </>
+                  )}
+                </span>
+              )}
             </div>
           </div>
         </div>
 
         {/* Right side controls: Currency & Utilities */}
         <div className="flex items-center gap-1.5">
+          {/* Notification Center Trigger */}
+          <button
+            onClick={onOpenNotifications}
+            className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors relative"
+            title="Notifications & Security Alerts"
+          >
+            <Bell className="w-4 h-4 text-indigo-400" />
+            {unreadNotificationCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center animate-pulse shadow-sm">
+                {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
+              </span>
+            )}
+          </button>
+
           {/* Root Anti-Tamper Security Badge */}
           <div 
             onClick={onOpenSettings}
             className={`cursor-pointer flex items-center gap-1 px-2 py-1 rounded-xl border text-[10px] font-extrabold transition-all ${
               tamperAlert
                 ? 'bg-red-500/20 text-red-300 border-red-500/40 animate-pulse'
-                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                : 'bg-slate-800 text-slate-300 border-slate-700'
             }`}
             title="Encrypted Vault Anti-Rooting Security Status"
           >
-            <Lock className="w-3 h-3 text-emerald-400" />
-            <span className="hidden sm:inline">{tamperAlert ? 'Tamper Alert' : 'AES-GCM Seal'}</span>
+            <Lock className="w-3 h-3 text-indigo-400" />
           </div>
 
           {/* Currency Toggle */}

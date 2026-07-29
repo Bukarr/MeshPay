@@ -4,6 +4,7 @@ import { BottomNav, ActiveTab } from './components/BottomNav';
 import { TransactionReceiptModal } from './components/TransactionReceiptModal';
 import { OfflineReceiveQrModal } from './components/OfflineReceiveQrModal';
 import { OfflineSendQrModal } from './components/OfflineSendQrModal';
+import { NotificationModal } from './components/NotificationModal';
 
 import { DashboardPage } from './pages/DashboardPage';
 import { RemittancePage } from './pages/RemittancePage';
@@ -17,11 +18,15 @@ import {
   getStoredUserProfile, 
   getStoredTransactions, 
   getStoredExchangeRate,
+  getStoredNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
   getActiveUserId,
   isUserLoggedIn,
   setUserLoggedIn
 } from './lib/storage';
-import { Transaction, Currency } from './types';
+import { Transaction, Currency, NotificationItem } from './types';
+import { initFx10MinAutoRefresh } from './lib/liveFxRates';
 import { Radio, RefreshCw, WifiOff, AlertTriangle } from 'lucide-react';
 
 export default function App() {
@@ -38,6 +43,7 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => isUserLoggedIn());
   const [user, setUser] = useState(() => getStoredUserProfile());
   const [transactions, setTransactions] = useState(() => getStoredTransactions());
+  const [notifications, setNotifications] = useState(() => getStoredNotifications());
   const [exchangeRate, setExchangeRate] = useState(() => getStoredExchangeRate());
 
   // UI state
@@ -45,27 +51,34 @@ export default function App() {
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [showReceiveQr, setShowReceiveQr] = useState<boolean>(false);
   const [showSendQr, setShowSendQr] = useState<boolean>(false);
+  const [showNotificationsModal, setShowNotificationsModal] = useState<boolean>(false);
   const [displayCurrency, setDisplayCurrency] = useState<Currency>('USD');
 
   // Reload local state on custom window storage events
   const reloadData = useCallback(() => {
     setIsLoggedIn(isUserLoggedIn());
-    setUser(getStoredUserProfile());
-    setTransactions(getStoredTransactions());
+    const currUser = getStoredUserProfile();
+    setUser(currUser);
+    setTransactions(getStoredTransactions(currUser.phone));
+    setNotifications(getStoredNotifications(currUser.phone));
     setExchangeRate(getStoredExchangeRate());
   }, []);
 
   useEffect(() => {
+    const cleanupFx = initFx10MinAutoRefresh();
     window.addEventListener('meshpay_auth_updated', reloadData);
     window.addEventListener('meshpay_profile_updated', reloadData);
     window.addEventListener('meshpay_transactions_updated', reloadData);
+    window.addEventListener('meshpay_notifications_updated', reloadData);
     window.addEventListener('meshpay_rate_updated', reloadData);
     window.addEventListener('meshpay_reset', reloadData);
 
     return () => {
+      cleanupFx();
       window.removeEventListener('meshpay_auth_updated', reloadData);
       window.removeEventListener('meshpay_profile_updated', reloadData);
       window.removeEventListener('meshpay_transactions_updated', reloadData);
+      window.removeEventListener('meshpay_notifications_updated', reloadData);
       window.removeEventListener('meshpay_rate_updated', reloadData);
       window.removeEventListener('meshpay_reset', reloadData);
     };
@@ -84,6 +97,8 @@ export default function App() {
     setDisplayCurrency(prev => (prev === 'USD' ? 'NGN' : 'USD'));
   };
 
+  const unreadNotifCount = notifications.filter(n => !n.read).length;
+
   if (!isLoggedIn) {
     return <LoginPage onLoginSuccess={reloadData} />;
   }
@@ -97,6 +112,8 @@ export default function App() {
         isWeakSignal={isWeakSignal}
         tamperAlert={tamperAlert}
         pendingOfflineCount={pendingOfflineCount}
+        unreadNotificationCount={unreadNotifCount}
+        onOpenNotifications={() => setShowNotificationsModal(true)}
         onOpenSync={triggerAutoSync}
         onOpenSettings={() => setActiveTab('profile')}
         onToggleCurrency={toggleCurrency}
@@ -240,6 +257,20 @@ export default function App() {
         onClose={() => setShowSendQr(false)}
         user={user}
         onTransactionComplete={handleTransactionComplete}
+      />
+
+      <NotificationModal
+        isOpen={showNotificationsModal}
+        onClose={() => setShowNotificationsModal(false)}
+        notifications={notifications}
+        onMarkAllRead={() => {
+          markAllNotificationsRead(user.phone);
+          setNotifications(getStoredNotifications(user.phone));
+        }}
+        onMarkRead={(id) => {
+          markNotificationRead(id, user.phone);
+          setNotifications(getStoredNotifications(user.phone));
+        }}
       />
     </div>
   );

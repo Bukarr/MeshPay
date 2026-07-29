@@ -30,7 +30,7 @@ import {
   Check
 } from 'lucide-react';
 import { UserProfile, ExchangeRate, NigerianBank, Transaction, NearbyPeer } from '../types';
-import { NIGERIAN_BANKS } from '../data/mockData';
+import { NIGERIAN_BANKS, INITIAL_USER_PROFILE, SECOND_USER_PROFILE, THIRD_USER_PROFILE } from '../data/mockData';
 import { WORLD_CURRENCIES, WorldCurrency, getCurrency, convertCurrency, formatCurrencyAmount } from '../lib/currencies';
 import { BiometricModal } from '../components/BiometricModal';
 import { SecurityModal } from '../components/SecurityModal';
@@ -81,6 +81,7 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
   const [notes, setNotes] = useState<string>('');
 
   // Crypto / FX Wallet Address Format State (Clean)
+  const [fxPayoutType, setFxPayoutType] = useState<'local_bank' | 'crypto_wallet'>('local_bank');
   const [walletNetwork, setWalletNetwork] = useState<string>('TRC20 (Tron Multi-FX Mesh Protocol)');
   const [walletAddress, setWalletAddress] = useState<string>('');
   const [walletMemo, setWalletMemo] = useState<string>('');
@@ -123,25 +124,84 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
     targetAmount = inputAmount;
   }
 
-  // Handle Bank Account Number Auto-Verification
+  // Known demo accounts map for instant account lookup & verification
+  const KNOWN_ACCOUNTS: Record<string, { name: string; bankCode: string }> = {
+    '9021849201': { name: 'Adewale Lawson', bankCode: '044' }, // Access Bank
+    '9000000001': { name: 'Adewale Lawson', bankCode: '035' }, // Wema Bank
+    '8092318492': { name: 'Fatima Bello', bankCode: '50211' }, // Kuda Bank
+    '7039102938': { name: 'Chinedu Okeke', bankCode: '50515' }, // Moniepoint MFB
+    '9012948102': { name: 'David Kalu (Vendor)', bankCode: '999992' }, // OPay
+  };
+
+  const VERIFIED_SAMPLE_NAMES = [
+    'BABAJIDE SANWO-OLU',
+    'CHIMAMANDA NGOZI EZE',
+    'EMELIA KOLAWOLE',
+    'OLUWASEUN ADEBAYO',
+    'DAMIELOLA FAROUK ADEBOYE',
+    'IFEOMA NNAJI',
+    'TUNDE BAKARE',
+    'AMINA MOHAMMED'
+  ];
+
+  // Handle Bank Account Number Auto-Verification (Immediately scans & auto-fills destination bank and recipient name on 10 digits)
   const handleAccountChange = (val: string) => {
+    // Strictly cap at max 10 digits only
     const digitsOnly = val.replace(/\D/g, '').slice(0, 10);
     setAccountNumber(digitsOnly);
+
+    if (digitsOnly.length < 10) {
+      setIsVerifyingAccount(false);
+      setBeneficiaryName('');
+      return;
+    }
 
     if (digitsOnly.length === 10) {
       setIsVerifyingAccount(true);
       setTimeout(() => {
         setIsVerifyingAccount(false);
-        setBeneficiaryName('Verified Recipient Account');
-      }, 500);
+
+        const meshPayBank = NIGERIAN_BANKS.find(b => b.code === '999001') || NIGERIAN_BANKS[0];
+
+        // 1. Check if logged-in user's own MeshPay account
+        if (digitsOnly === user.virtualAccountNgn) {
+          setBeneficiaryName(`${user.name} (Self - MeshPay Account)`);
+          setSelectedBank(meshPayBank);
+          return;
+        }
+
+        // 2. Check preset MeshPay app user profiles
+        const meshUsers = [INITIAL_USER_PROFILE, SECOND_USER_PROFILE, THIRD_USER_PROFILE];
+        const matchedMeshUser = meshUsers.find(u => u.virtualAccountNgn === digitsOnly);
+        if (matchedMeshUser) {
+          setBeneficiaryName(`${matchedMeshUser.name} (MeshPay Account)`);
+          setSelectedBank(meshPayBank);
+          return;
+        }
+
+        // 3. Check known presets lookup
+        if (KNOWN_ACCOUNTS[digitsOnly]) {
+          const matched = KNOWN_ACCOUNTS[digitsOnly];
+          setBeneficiaryName(matched.name);
+          const bMatch = NIGERIAN_BANKS.find(b => b.code === matched.bankCode);
+          if (bMatch) setSelectedBank(bMatch);
+          return;
+        }
+
+        // 4. Deterministic name lookup for any other valid 10-digit NIBSS account number
+        const sum = digitsOnly.split('').reduce((acc, curr) => acc + (parseInt(curr, 10) || 0), 0);
+        const resolvedName = VERIFIED_SAMPLE_NAMES[sum % VERIFIED_SAMPLE_NAMES.length];
+        setBeneficiaryName(resolvedName);
+      }, 350);
     }
   };
 
   const handleInitiateBankTransfer = () => {
     if (inputAmount <= 0) return alert('Please enter a valid transfer amount');
 
-    if (transferDirection === 'ngn_to_ngn') {
-      if (accountNumber.length < 10) return alert('Please enter a valid 10-digit Nigerian bank account number');
+    const isLocalBankPayout = transferDirection === 'ngn_to_ngn' || fxPayoutType === 'local_bank';
+    if (isLocalBankPayout) {
+      if (accountNumber.length < 10) return alert('Please enter a valid 10-digit bank account number');
       if (!beneficiaryName.trim()) return alert('Please enter or verify the recipient account name');
     } else {
       if (!walletAddress.trim()) return alert('Please enter or paste the destination FX/Crypto Wallet Address');
@@ -162,12 +222,13 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
   const handleBankAuthSuccess = () => {
     setShowBiometricModal(false);
 
-    const recipientDisplayName = beneficiaryName.trim() || 'FX Wallet Recipient';
-    const recipientDetailsStr = transferDirection === 'ngn_to_ngn'
+    const isLocalBankPayout = transferDirection === 'ngn_to_ngn' || fxPayoutType === 'local_bank';
+    const recipientDisplayName = beneficiaryName.trim() || (isLocalBankPayout ? 'Bank Recipient' : 'FX Wallet Recipient');
+    const recipientDetailsStr = isLocalBankPayout
       ? `${selectedBank.name} (${accountNumber})`
       : `${walletNetwork.split(' ')[0]} Address: ${walletAddress.length > 12 ? walletAddress.slice(0, 8) + '...' + walletAddress.slice(-4) : walletAddress}`;
-    const bBankName = transferDirection === 'ngn_to_ngn' ? selectedBank.name : walletNetwork;
-    const bAccNum = transferDirection === 'ngn_to_ngn' ? accountNumber : walletAddress;
+    const bBankName = isLocalBankPayout ? selectedBank.name : walletNetwork;
+    const bAccNum = isLocalBankPayout ? accountNumber : walletAddress;
 
     if (!isOnline) {
       // Store & Forward Execution
@@ -285,12 +346,12 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
             </div>
           </div>
 
-          <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold border flex items-center gap-1 ${
-            isOnline ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'
-          }`}>
-            {isOnline ? <Wifi className="w-3 h-3 text-emerald-600" /> : <WifiOff className="w-3 h-3 text-amber-600" />}
-            <span>{isOnline ? 'Online Core' : 'Store & Forward'}</span>
-          </span>
+          {!isOnline && (
+            <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold border flex items-center gap-1 bg-amber-50 text-amber-800 border-amber-200">
+              <WifiOff className="w-3 h-3 text-amber-600" />
+              <span>Store & Forward</span>
+            </span>
+          )}
         </div>
 
         {/* Primary Mode Selector: Bank & Currency vs Bluetooth Mesh */}
@@ -462,15 +523,130 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
               <h3 className="font-extrabold text-xs text-slate-500 uppercase tracking-wider">
                 2. Recipient Information
               </h3>
-              {transferDirection !== 'ngn_to_ngn' && (
-                <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-                  <Globe className="w-3 h-3 text-indigo-600" /> FX Wallet Address Format
-                </span>
-              )}
             </div>
 
-            {/* If transfer is FX to NGN or NGN to FX, render Crypto/FX Wallet Address Format like Crypto Apps */}
-            {transferDirection !== 'ngn_to_ngn' ? (
+            {/* Payout method selector if multi-currency conversion */}
+            {transferDirection !== 'ngn_to_ngn' && (
+              <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-2xl border border-slate-200 gap-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setFxPayoutType('local_bank')}
+                  className={`py-2 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all ${
+                    fxPayoutType === 'local_bank'
+                      ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span>Local Bank</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFxPayoutType('crypto_wallet')}
+                  className={`py-2 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all ${
+                    fxPayoutType === 'crypto_wallet'
+                      ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>Crypto / FX Wallet</span>
+                </button>
+              </div>
+            )}
+
+            {/* Render form based on selected payout type or NGN direction */}
+            {(transferDirection === 'ngn_to_ngn' || fxPayoutType === 'local_bank') ? (
+              /* Local Bank Transfer Form */
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Select Destination Bank:</label>
+                  <select
+                    value={selectedBank.code}
+                    onChange={(e) => {
+                      const b = NIGERIAN_BANKS.find(bank => bank.code === e.target.value) || NIGERIAN_BANKS[0];
+                      setSelectedBank(b);
+                    }}
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  >
+                    {NIGERIAN_BANKS.map(b => (
+                      <option key={b.code} value={b.code}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-700 block">Account Number (10 Digits Max):</label>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const text = await navigator.clipboard.readText();
+                          if (text) handleAccountChange(text);
+                        } catch {
+                          // fallback
+                        }
+                      }}
+                      className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-100 transition-all active:scale-95"
+                    >
+                      <Clipboard className="w-3 h-3" />
+                      <span>Paste Account</span>
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={accountNumber}
+                      onChange={(e) => handleAccountChange(e.target.value)}
+                      onPaste={(e) => {
+                        e.preventDefault();
+                        const pasted = e.clipboardData.getData('text');
+                        handleAccountChange(pasted);
+                      }}
+                      placeholder="e.g. 0123456789"
+                      maxLength={10}
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl font-mono font-bold text-sm text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                    />
+                    {isVerifyingAccount ? (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-indigo-600 font-bold flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded-xl border border-indigo-200">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Verifying NIBSS...
+                      </span>
+                    ) : (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-mono font-bold text-slate-400">
+                        {accountNumber.length}/10
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Recipient Account Name:</label>
+                  <div className={`p-3 border rounded-2xl flex items-center gap-2 transition-all ${
+                    beneficiaryName ? 'bg-emerald-50/90 border-emerald-300' : 'bg-slate-50 border-slate-200'
+                  }`}>
+                    <UserCheck className={`w-4 h-4 shrink-0 ${beneficiaryName ? 'text-emerald-600' : 'text-slate-400'}`} />
+                    <input
+                      type="text"
+                      value={beneficiaryName}
+                      onChange={(e) => setBeneficiaryName(e.target.value)}
+                      placeholder="Auto-verifies when 10 digits are typed/pasted..."
+                      className={`text-xs font-extrabold bg-transparent focus:outline-none w-full ${
+                        beneficiaryName ? 'text-emerald-950 font-black' : 'text-slate-900'
+                      }`}
+                    />
+                  </div>
+                  {beneficiaryName && (
+                    <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-emerald-700 font-extrabold px-1 animate-fadeIn">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>NIBSS Instant Account Verified • {selectedBank.name}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Crypto / FX Wallet Format */
               <div className="space-y-3">
                 <div>
                   <label className="text-xs font-bold text-slate-700 block mb-1">Crypto / FX Network Protocol:</label>
@@ -542,71 +718,6 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl font-mono text-xs text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                   />
                 </div>
-
-                {walletAddress && (
-                  <div className="p-3 bg-indigo-50/80 border border-indigo-200 rounded-2xl flex items-center justify-between text-xs animate-fadeIn">
-                    <span className="font-bold text-indigo-900 flex items-center gap-1.5 text-[11px]">
-                      <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
-                      Multi-Chain Address Format Verified
-                    </span>
-                    <span className="text-[10px] font-mono text-indigo-700 font-extrabold bg-white px-2 py-0.5 rounded-lg border border-indigo-100">
-                      {walletNetwork.split(' ')[0]}
-                    </span>
-                  </div>
-                )}
-              </div>
-            ) : (
-              /* Local NGN Bank Transfer Format (Clean zero pre-filled demo data) */
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Select Nigerian Destination Bank:</label>
-                  <select
-                    value={selectedBank.code}
-                    onChange={(e) => {
-                      const b = NIGERIAN_BANKS.find(bank => bank.code === e.target.value) || NIGERIAN_BANKS[0];
-                      setSelectedBank(b);
-                    }}
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                  >
-                    {NIGERIAN_BANKS.map(b => (
-                      <option key={b.code} value={b.code}>{b.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Account Number (10 Digits):</label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={accountNumber}
-                      onChange={(e) => handleAccountChange(e.target.value)}
-                      placeholder="e.g. 0123456789"
-                      maxLength={10}
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl font-mono font-bold text-sm text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-                    />
-                    {isVerifyingAccount && (
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-indigo-600 font-bold flex items-center gap-1">
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Verifying...
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {beneficiaryName && (
-                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-2">
-                    <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <div>
-                      <span className="text-[10px] text-emerald-700 font-bold uppercase block">Verified Account Name</span>
-                      <input
-                        type="text"
-                        value={beneficiaryName}
-                        onChange={(e) => setBeneficiaryName(e.target.value)}
-                        className="text-xs font-black text-emerald-950 bg-transparent focus:outline-none border-b border-emerald-300 w-full"
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 

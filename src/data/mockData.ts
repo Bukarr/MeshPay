@@ -3,13 +3,14 @@ import { UserProfile, NigerianBank, NearbyPeer, Transaction, ExchangeRate, FxHis
 export const INITIAL_USER_PROFILE: UserProfile = {
   name: 'Adewale Lawson',
   email: 'adewale.lawson@meshpay.io',
+  phone: '08012345678',
   tag: '$adewale_l',
   avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
   usdBalance: 2850.00,
   ngnBalance: 1420000.00,
   virtualAccountNgn: '9021849201',
   virtualAccountUsd: '409218294012',
-  bankName: 'Wema Bank / MeshPay Vault',
+  bankName: 'MeshPay Account',
   tier: 'Tier 3 (Verified)',
   pin: '1234',
   biometricEnabled: true,
@@ -20,6 +21,7 @@ export const INITIAL_USER_PROFILE: UserProfile = {
 export const SECOND_USER_PROFILE: UserProfile = {
   name: 'Fatima Bello',
   email: 'fatima.bello@meshpay.io',
+  phone: '08098765432',
   tag: '$fatima_b',
   avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
   usdBalance: 1200.00,
@@ -37,6 +39,7 @@ export const SECOND_USER_PROFILE: UserProfile = {
 export const THIRD_USER_PROFILE: UserProfile = {
   name: 'Chinedu Okeke',
   email: 'chinedu.okeke@meshpay.io',
+  phone: '07011223344',
   tag: '$chinedu_tech',
   avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
   usdBalance: 450.00,
@@ -76,6 +79,7 @@ export const PRESET_ACCOUNTS = [
 ];
 
 export const NIGERIAN_BANKS: NigerianBank[] = [
+  { code: '999001', name: 'MeshPay Digital Bank / Vault', popular: true },
   { code: '058', name: 'Guaranty Trust Bank (GTBank)', popular: true },
   { code: '057', name: 'Zenith Bank', popular: true },
   { code: '044', name: 'Access Bank', popular: true },
@@ -114,7 +118,7 @@ export const INITIAL_NEARBY_PEERS: NearbyPeer[] = [
     signalStrength: 'strong',
     connectionType: 'BLE Mesh',
     accountNumber: '9021849201',
-    bankName: 'Wema Bank / MeshPay Vault',
+    bankName: 'MeshPay Account',
     isVerified: true,
     publicKey: 'mp_sec_0x9f8a3c...e42b'
   },

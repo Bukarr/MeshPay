@@ -12,10 +12,13 @@ import {
   Copy, 
   Check, 
   QrCode, 
-  KeyRound
+  KeyRound,
+  ArrowDownLeft,
+  ArrowUpRight
 } from 'lucide-react';
 import { Transaction } from '../types';
 import { generateTransactionPdf } from '../lib/pdfGenerator';
+import { downloadReceiptImage } from '../lib/receiptImageGenerator';
 import { generateDynamicCryptoCode, encryptTransactionPayload } from '../lib/qrCrypto';
 
 interface TransactionReceiptModalProps {
@@ -78,6 +81,7 @@ export const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = (
   if (!transaction) return null;
 
   const isUsdToNgn = transaction.type === 'usd_to_ngn';
+  const isReceived = transaction.type === 'nearby_receive' || transaction.type === 'top_up';
 
   const formatCurrency = (val: number, cur: string) => {
     if (cur === 'USD') return `$${val.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
@@ -119,9 +123,9 @@ export const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = (
       <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden text-white relative max-h-[90vh] flex flex-col">
         {/* Top Header Decorative Banner */}
         <div className={`p-5 text-center relative shrink-0 ${
-          transaction.status === 'completed' 
-            ? 'bg-gradient-to-b from-emerald-950/80 to-slate-900 border-b border-emerald-500/20' 
-            : 'bg-gradient-to-b from-amber-950/80 to-slate-900 border-b border-amber-500/20'
+          isReceived
+            ? 'bg-gradient-to-b from-emerald-950/90 via-emerald-900/40 to-slate-900 border-b border-emerald-500/30' 
+            : 'bg-gradient-to-b from-indigo-950/90 via-slate-900/60 to-slate-900 border-b border-indigo-500/30'
         }`}>
           <button 
             onClick={onClose}
@@ -130,39 +134,41 @@ export const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = (
             <X className="w-4 h-4" />
           </button>
 
-          {/* Status Icon */}
+          {/* Direction & Status Icon */}
           <div className="w-12 h-12 mx-auto mb-2 rounded-2xl flex items-center justify-center shadow-xl relative">
-            {transaction.status === 'completed' ? (
+            {isReceived ? (
               <div className="w-full h-full bg-emerald-500 text-slate-950 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
-                <CheckCircle2 className="w-7 h-7 stroke-[2.5]" />
+                <ArrowDownLeft className="w-7 h-7 stroke-[3]" />
               </div>
             ) : transaction.status === 'queued_offline' ? (
               <div className="w-full h-full bg-amber-500 text-slate-950 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/30 animate-pulse">
                 <Clock className="w-7 h-7 stroke-[2.5]" />
               </div>
             ) : (
-              <div className="w-full h-full bg-blue-500 text-slate-950 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30">
-                <RefreshCw className="w-7 h-7 animate-spin" />
+              <div className="w-full h-full bg-indigo-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                <ArrowUpRight className="w-7 h-7 stroke-[3]" />
               </div>
             )}
           </div>
 
-          <div className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider mb-1.5 border ${
-            transaction.status === 'completed'
+          <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mb-2 border ${
+            isReceived
               ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-              : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-          }">
-            {transaction.status === 'completed' && 'Transaction Successful'}
-            {transaction.status === 'queued_offline' && 'Queued Offline (P2P Mesh Verified)'}
-            {transaction.status === 'syncing' && 'Syncing with Settlement Core'}
+              : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+          }`}>
+            <span>{isReceived ? 'Credit Received' : 'Debit Sent'}</span>
+            <span>•</span>
+            <span>{transaction.status === 'completed' ? 'Settled' : 'Queued'}</span>
           </div>
 
-          <h2 className="text-2xl font-black tracking-tight text-white">
-            {formatCurrency(transaction.targetAmount, transaction.targetCurrency)}
+          <h2 className={`text-2xl font-black tracking-tight ${isReceived ? 'text-emerald-400' : 'text-white'}`}>
+            {isReceived ? '+' : '-'}{formatCurrency(transaction.targetAmount, transaction.targetCurrency)}
           </h2>
 
           <p className="text-[11px] text-slate-400 mt-0.5">
-            {isUsdToNgn ? 'USD to NGN Cross-Border Remittance' : 'Offline Nearby P2P Payment'}
+            {isReceived 
+              ? (transaction.type === 'top_up' ? 'Account Deposit / Top-up' : 'Incoming P2P Mesh Credit')
+              : (isUsdToNgn ? 'USD to NGN Remittance Swap' : 'Outgoing P2P Transfer')}
           </p>
         </div>
 
@@ -170,29 +176,29 @@ export const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = (
         <div className="p-4 space-y-3 text-xs overflow-y-auto flex-1">
           <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
             <div className="flex items-center justify-between text-slate-400">
-              <span>Recipient Name</span>
+              <span>{isReceived ? 'Sender / Payer' : 'Recipient Name'}</span>
               <span className="font-semibold text-slate-100">{transaction.recipientName}</span>
             </div>
 
             <div className="flex items-center justify-between text-slate-400">
-              <span>Destination Detail</span>
+              <span>{isReceived ? 'Source Detail' : 'Destination Detail'}</span>
               <span className="font-mono text-slate-200">{transaction.recipientDetail}</span>
             </div>
 
             {transaction.bankName && (
               <div className="flex items-center justify-between text-slate-400">
-                <span>Beneficiary Bank</span>
+                <span>{isReceived ? 'Sender Bank' : 'Beneficiary Bank'}</span>
                 <span className="font-medium text-slate-200 flex items-center gap-1">
-                  <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <Building2 className="w-3.5 h-3.5 text-indigo-400" />
                   {transaction.bankName}
                 </span>
               </div>
             )}
 
             <div className="border-t border-slate-800 my-1 pt-2 flex items-center justify-between text-slate-400">
-              <span>Debited Amount</span>
-              <span className="font-semibold text-slate-200">
-                {formatCurrency(transaction.sourceAmount, transaction.sourceCurrency)}
+              <span>{isReceived ? 'Credited Amount' : 'Debited Amount'}</span>
+              <span className={`font-bold ${isReceived ? 'text-emerald-400' : 'text-slate-100'}`}>
+                {isReceived ? '+' : '-'}{formatCurrency(transaction.sourceAmount, transaction.sourceCurrency)}
               </span>
             </div>
 
@@ -319,28 +325,28 @@ export const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = (
         </div>
 
         {/* Action Buttons */}
-        <div className="p-4 bg-slate-950 border-t border-slate-800 flex items-center gap-2 shrink-0">
-          {transaction.status === 'queued_offline' && onSyncNow ? (
-            <button
-              onClick={onSyncNow}
-              className="flex-1 py-2.5 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 hover:bg-amber-400 transition-colors shadow-lg shadow-amber-500/20"
-            >
-              <RefreshCw className="w-4 h-4 animate-spin" />
-              <span>Sync Transaction Now</span>
-            </button>
-          ) : (
+        <div className="p-4 bg-slate-950 border-t border-slate-800 flex flex-col gap-2 shrink-0">
+          <div className="flex items-center gap-2">
             <button
               onClick={handleDownloadPdf}
-              className="flex-1 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 font-semibold text-xs flex items-center justify-center gap-2 hover:bg-slate-700 transition-colors"
+              className="flex-1 py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors"
             >
               <Download className="w-4 h-4 text-emerald-400" />
-              <span>Download PDF Summary</span>
+              <span>PDF Receipt</span>
             </button>
-          )}
+
+            <button
+              onClick={() => downloadReceiptImage(transaction)}
+              className="flex-1 py-2.5 px-3 rounded-xl bg-indigo-900/60 hover:bg-indigo-800/80 border border-indigo-500/40 text-indigo-200 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <Download className="w-4 h-4 text-indigo-400" />
+              <span>Image (PNG)</span>
+            </button>
+          </div>
 
           <button
             onClick={onClose}
-            className="py-2.5 px-4 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs hover:bg-emerald-400 transition-colors"
+            className="w-full py-2.5 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs hover:bg-emerald-400 transition-colors shadow-md"
           >
             Done
           </button>

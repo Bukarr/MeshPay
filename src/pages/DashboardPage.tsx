@@ -3,6 +3,7 @@ import {
   Send, 
   Radio, 
   ArrowDownLeft, 
+  ArrowUpRight,
   ChevronRight, 
   Eye, 
   EyeOff,
@@ -116,10 +117,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-500">Vault Balances</h2>
-            <span className="text-[10px] bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-0.2 rounded-full font-bold flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              {isOnline ? 'Online Sync' : 'Offline Vault'}
-            </span>
+            {!isOnline && (
+              <span className="text-[10px] bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.2 rounded-full font-bold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                Offline Vault
+              </span>
+            )}
           </div>
 
           <button
@@ -173,10 +176,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           {/* Bank Account Info & Interbank Details */}
           <div className="mt-5 pt-4 border-t border-slate-800 flex items-center justify-between bg-slate-950/60 p-3 rounded-2xl border border-slate-800/80">
             <div>
-              <span className="text-[9px] text-slate-400 uppercase tracking-wider font-extrabold block">Virtual Bank Account</span>
+              <span className="text-[9px] text-slate-400 uppercase tracking-wider font-extrabold block">MeshPay Account Number</span>
               <div className="text-xs font-black text-white flex items-center gap-1.5 mt-0.5">
                 <Building2 className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                <span>{user.bankName}</span>
+                <span>{user.virtualAccountNgn}</span>
               </div>
             </div>
 
@@ -415,52 +418,64 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         ) : (
           <div className="space-y-2">
-            {recentTxs.map((tx) => (
-              <div
-                key={tx.id}
-                onClick={() => onSelectTransaction(tx)}
-                className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 hover:border-indigo-300 transition-all cursor-pointer flex items-center justify-between"
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-xs font-bold ${
-                    tx.type === 'usd_to_ngn'
-                      ? 'bg-indigo-100 text-indigo-700 border border-indigo-200'
-                      : tx.type === 'nearby_send'
-                      ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                      : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                  }`}>
-                    {tx.type === 'usd_to_ngn' ? '$→₦' : tx.type === 'nearby_send' ? 'P2P' : 'IN'}
-                  </div>
-
-                  <div>
-                    <div className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
-                      <span>{tx.recipientName}</span>
-                      {tx.status === 'queued_offline' && (
-                        <span className="text-[9px] bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.2 rounded font-mono font-bold">
-                          OFFLINE
-                        </span>
+            {recentTxs.map((tx) => {
+              const isReceived = tx.type === 'nearby_receive' || tx.type === 'top_up';
+              return (
+                <div
+                  key={tx.id}
+                  onClick={() => onSelectTransaction(tx)}
+                  className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 hover:border-indigo-300 hover:bg-white transition-all cursor-pointer flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-xs font-bold shrink-0 ${
+                      isReceived
+                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                        : tx.type === 'usd_to_ngn'
+                        ? 'bg-indigo-100 text-indigo-700 border border-indigo-200'
+                        : 'bg-rose-100 text-rose-700 border border-rose-200'
+                    }`}>
+                      {isReceived ? (
+                        <ArrowDownLeft className="w-5 h-5 text-emerald-600" />
+                      ) : (
+                        <ArrowUpRight className="w-5 h-5 text-rose-600" />
                       )}
                     </div>
-                    <div className="text-[11px] text-slate-500 font-mono">
-                      {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {tx.recipientDetail}
-                    </div>
-                  </div>
-                </div>
 
-                <div className="text-right">
-                  <div className={`font-extrabold text-xs ${
-                    tx.type === 'nearby_receive' || tx.type === 'top_up' ? 'text-emerald-600' : 'text-slate-900'
-                  }`}>
-                    {tx.type === 'usd_to_ngn' ? `$${tx.sourceAmount}` : `₦${tx.sourceAmount.toLocaleString()}`}
-                  </div>
-                  {tx.type === 'usd_to_ngn' && (
-                    <div className="text-[10px] text-emerald-600 font-mono font-bold">
-                      → ₦{tx.targetAmount.toLocaleString()}
+                    <div>
+                      <div className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                        <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider ${
+                          isReceived ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          {isReceived ? 'RECEIVED' : 'SENT'}
+                        </span>
+                        <span>{isReceived ? `From: ${tx.recipientName}` : `To: ${tx.recipientName}`}</span>
+                        {tx.status === 'queued_offline' && (
+                          <span className="text-[9px] bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.2 rounded font-mono font-bold">
+                            OFFLINE
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                        {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {tx.recipientDetail}
+                      </div>
                     </div>
-                  )}
+                  </div>
+
+                  <div className="text-right">
+                    <div className={`font-black text-xs ${
+                      isReceived ? 'text-emerald-600' : 'text-slate-900'
+                    }`}>
+                      {isReceived ? '+' : '-'}{tx.type === 'usd_to_ngn' ? `$${tx.sourceAmount.toLocaleString()}` : `₦${tx.sourceAmount.toLocaleString()}`}
+                    </div>
+                    {tx.type === 'usd_to_ngn' && (
+                      <div className="text-[10px] text-emerald-600 font-mono font-bold">
+                        → ₦{tx.targetAmount.toLocaleString()}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

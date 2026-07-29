@@ -126,66 +126,76 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({
             <p className="text-[11px] text-slate-400">Try searching by ID, amount (e.g. 100), recipient or type.</p>
           </div>
         ) : (
-          filtered.map((tx) => (
-            <div
-              key={tx.id}
-              onClick={() => onSelectTransaction(tx)}
-              className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 hover:border-indigo-300 transition-all cursor-pointer flex items-center justify-between"
-            >
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-xs font-bold shrink-0 ${
-                  tx.status === 'queued_offline'
-                    ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                    : tx.type === 'usd_to_ngn'
-                    ? 'bg-indigo-100 text-indigo-700 border border-indigo-200'
-                    : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                }`}>
-                  {tx.status === 'queued_offline' ? (
-                    <Clock className="w-5 h-5 animate-pulse text-amber-600" />
-                  ) : tx.type === 'usd_to_ngn' ? (
-                    <Send className="w-5 h-5 text-indigo-600" />
-                  ) : (
-                    <Radio className="w-5 h-5 text-emerald-600" />
-                  )}
-                </div>
-
-                <div>
-                  <div className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
-                    <span>{tx.recipientName}</span>
-                    {tx.status === 'queued_offline' && (
-                      <span className="text-[9px] bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.2 rounded font-mono font-bold">
-                        QUEUED
-                      </span>
+          filtered.map((tx) => {
+            const isReceived = tx.type === 'nearby_receive' || tx.type === 'top_up';
+            return (
+              <div
+                key={tx.id}
+                onClick={() => onSelectTransaction(tx)}
+                className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 hover:border-indigo-300 hover:bg-white transition-all cursor-pointer flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-xs font-bold shrink-0 ${
+                    tx.status === 'queued_offline'
+                      ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                      : isReceived
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      : tx.type === 'usd_to_ngn'
+                      ? 'bg-indigo-100 text-indigo-700 border border-indigo-200'
+                      : 'bg-rose-100 text-rose-700 border border-rose-200'
+                  }`}>
+                    {tx.status === 'queued_offline' ? (
+                      <Clock className="w-5 h-5 animate-pulse text-amber-600" />
+                    ) : isReceived ? (
+                      <ArrowDownLeft className="w-5 h-5 text-emerald-600" />
+                    ) : (
+                      <ArrowUpRight className="w-5 h-5 text-rose-600" />
                     )}
                   </div>
-                  <div className="text-[11px] text-slate-500 font-mono mt-0.5">
-                    {new Date(tx.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} • {tx.recipientDetail}
+
+                  <div>
+                    <div className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                      <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider ${
+                        isReceived ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {isReceived ? 'RECEIVED' : 'SENT'}
+                      </span>
+                      <span>{isReceived ? `From: ${tx.recipientName}` : `To: ${tx.recipientName}`}</span>
+                      {tx.status === 'queued_offline' && (
+                        <span className="text-[9px] bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.2 rounded font-mono font-bold">
+                          QUEUED
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                      {new Date(tx.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} • {tx.recipientDetail}
+                    </div>
+                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                      ID: {tx.id.slice(0, 16)}...
+                    </div>
                   </div>
-                  <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                    ID: {tx.id.slice(0, 16)}...
+                </div>
+
+                <div className="text-right">
+                  <div className={`font-black text-xs ${
+                    isReceived ? 'text-emerald-600' : 'text-slate-900'
+                  }`}>
+                    {isReceived ? '+' : '-'}{tx.type === 'usd_to_ngn' ? `$${tx.sourceAmount.toLocaleString()}` : `₦${tx.sourceAmount.toLocaleString()}`}
+                  </div>
+
+                  {tx.type === 'usd_to_ngn' && (
+                    <div className="text-[10px] text-emerald-600 font-mono font-bold">
+                      → ₦{tx.targetAmount.toLocaleString()}
+                    </div>
+                  )}
+
+                  <div className="text-[9px] text-slate-400 mt-0.5 uppercase tracking-wide font-bold">
+                    {tx.status === 'queued_offline' ? 'Offline Queued' : 'Settled'}
                   </div>
                 </div>
               </div>
-
-              <div className="text-right">
-                <div className={`font-extrabold text-xs ${
-                  tx.type === 'nearby_receive' || tx.type === 'top_up' ? 'text-emerald-600' : 'text-slate-900'
-                }`}>
-                  {tx.type === 'usd_to_ngn' ? `$${tx.sourceAmount}` : `₦${tx.sourceAmount.toLocaleString()}`}
-                </div>
-
-                {tx.type === 'usd_to_ngn' && (
-                  <div className="text-[10px] text-emerald-600 font-mono font-bold">
-                    → ₦{tx.targetAmount.toLocaleString()}
-                  </div>
-                )}
-
-                <div className="text-[9px] text-slate-400 mt-0.5 uppercase tracking-wide font-bold">
-                  {tx.status === 'queued_offline' ? 'Offline Queued' : 'Settled'}
-                </div>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

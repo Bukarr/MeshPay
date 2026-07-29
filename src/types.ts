@@ -53,6 +53,7 @@ export interface ExchangeRate {
 export interface UserProfile {
   name: string;
   email: string;
+  phone: string;
   tag: string;
   avatar: string;
   usdBalance: number;
@@ -71,6 +72,16 @@ export interface NigerianBank {
   code: string;
   name: string;
   popular?: boolean;
+}
+
+export interface NotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  type: 'transaction' | 'security' | 'system' | 'offline_sync';
+  timestamp: string;
+  read: boolean;
+  link?: string;
 }
 
 export interface FxHistoryPoint {

@@ -15,25 +15,33 @@ import {
   Check,
   AlertCircle,
   Smartphone,
-  Cpu
+  Cpu,
+  LogIn
 } from 'lucide-react';
-import { saveUserProfile, setUserLoggedIn } from '../lib/storage';
+import { saveUserProfile, setUserLoggedIn, getStoredUserProfile } from '../lib/storage';
 import { UserProfile } from '../types';
+import { INITIAL_USER_PROFILE, SECOND_USER_PROFILE, THIRD_USER_PROFILE } from '../data/mockData';
 
 interface LoginPageProps {
   onLoginSuccess: () => void;
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [step, setStep] = useState<1 | 2 | 3>(1); // 1: Profile & Funding, 2: KYC Details, 3: Face Liveness Scan
   
-  // Form fields
+  // Existing User Login Fields
+  const [loginPhone, setLoginPhone] = useState('08012345678');
+  const [loginPin, setLoginPin] = useState('1234');
+  const [loginError, setLoginError] = useState('');
+
+  // Sign Up Form fields
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [tag, setTag] = useState('');
   const [pin, setPin] = useState('');
   const [initialFundNgn, setInitialFundNgn] = useState<number>(1000000);
-  const [initialFundUsd, setInitialFundUsd] = useState<number>(2500);
 
   // KYC details
   const [docType, setDocType] = useState<'bvn' | 'nin'>('bvn');
@@ -60,10 +68,61 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
   };
 
+  const handleExistingUserLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+
+    if (!loginPhone.trim()) {
+      setLoginError('Please enter your registered phone number.');
+      return;
+    }
+
+    if (loginPin.length !== 4 || isNaN(Number(loginPin))) {
+      setLoginError('PIN must be exactly 4 digits.');
+      return;
+    }
+
+    const cleanInputPhone = loginPhone.replace(/\D/g, '').replace(/^234/, '0');
+    
+    // Check against current stored user profile
+    const storedUser = getStoredUserProfile();
+    const cleanStoredPhone = (storedUser.phone || '').replace(/\D/g, '').replace(/^234/, '0');
+
+    if (
+      (cleanInputPhone === cleanStoredPhone || (cleanStoredPhone.length >= 7 && cleanInputPhone.endsWith(cleanStoredPhone.slice(-10)))) &&
+      loginPin === storedUser.pin
+    ) {
+      saveUserProfile(storedUser);
+      setUserLoggedIn(true);
+      onLoginSuccess();
+      return;
+    }
+
+    // Check preset demo profiles
+    const presetUsers = [INITIAL_USER_PROFILE, SECOND_USER_PROFILE, THIRD_USER_PROFILE];
+    const matchedUser = presetUsers.find(u => {
+      const uPhone = (u.phone || '').replace(/\D/g, '').replace(/^234/, '0');
+      return (cleanInputPhone === uPhone || (uPhone.length >= 7 && cleanInputPhone.endsWith(uPhone.slice(-10)))) && loginPin === u.pin;
+    });
+
+    if (matchedUser) {
+      saveUserProfile(matchedUser);
+      setUserLoggedIn(true);
+      onLoginSuccess();
+      return;
+    }
+
+    setLoginError('Invalid Phone Number or 4-Digit PIN. Please check your credentials or create an account.');
+  };
+
   const handleNextToKyc = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || !tag || !pin) {
-      alert('Please fill out all profile fields.');
+    if (!name || !email || !phone || !tag || !pin) {
+      alert('Please fill out all required profile fields including phone number.');
+      return;
+    }
+    if (phone.length < 10) {
+      alert('Please enter a valid phone number (at least 10 digits).');
       return;
     }
     if (pin.length !== 4 || isNaN(Number(pin))) {
@@ -137,13 +196,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     const finalProfile: UserProfile = {
       name,
       email,
+      phone: phone.trim() || '08012345678',
       tag: tag.startsWith('$') ? tag : '$' + tag,
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      usdBalance: initialFundUsd,
+      usdBalance: 2500,
       ngnBalance: initialFundNgn,
       virtualAccountNgn: generatedNgnAccount,
       virtualAccountUsd: generatedUsdAccount,
-      bankName: 'Wema Bank / MeshPay Vault',
+      bankName: 'MeshPay Account',
       tier: 'Tier 3 (Verified)',
       pin,
       biometricEnabled: true,
@@ -170,7 +230,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       <div className="absolute -top-20 -left-20 w-64 h-64 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="relative z-10 space-y-6">
+      <div className="relative z-10 space-y-5">
         {/* Branding Header */}
         <div className="text-center space-y-1">
           <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white shadow-xl shadow-indigo-500/20 flex items-center justify-center mx-auto border border-indigo-400/30">
@@ -182,122 +242,107 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           </p>
         </div>
 
-        {/* Wizard Steps indicator */}
-        <div className="flex justify-between items-center px-4">
-          <div className="flex items-center gap-1.5">
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${step >= 1 ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}>1</div>
-            <span className="text-[10px] font-bold text-slate-300">Profile</span>
-          </div>
-          <div className="h-0.5 w-10 bg-slate-800 flex-1 mx-2" />
-          <div className="flex items-center gap-1.5">
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${step >= 2 ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}>2</div>
-            <span className="text-[10px] font-bold text-slate-300">KYC</span>
-          </div>
-          <div className="h-0.5 w-10 bg-slate-800 flex-1 mx-2" />
-          <div className="flex items-center gap-1.5">
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${step >= 3 ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}>3</div>
-            <span className="text-[10px] font-bold text-slate-300">Liveness</span>
-          </div>
+        {/* Auth Mode Toggle Switcher */}
+        <div className="grid grid-cols-2 p-1 bg-slate-900 border border-slate-800 rounded-2xl text-xs gap-1">
+          <button
+            type="button"
+            onClick={() => { setAuthMode('login'); setLoginError(''); }}
+            className={`py-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition-all ${
+              authMode === 'login'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            <span>Sign In</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setAuthMode('signup'); setStep(1); }}
+            className={`py-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition-all ${
+              authMode === 'signup'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <User className="w-3.5 h-3.5" />
+            <span>Create Account</span>
+          </button>
         </div>
 
-        {/* STEP 1: Profile Creation & Initial Testing Funds */}
-        {step === 1 && (
-          <form onSubmit={handleNextToKyc} className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-4">
+        {/* EXISTING USER LOGIN MODE */}
+        {authMode === 'login' && (
+          <form onSubmit={handleExistingUserLogin} className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-4 animate-fadeIn">
             <div className="space-y-1">
               <div className="flex items-center gap-1.5">
-                <User className="w-4 h-4 text-indigo-400" />
-                <h3 className="font-extrabold text-sm text-white">Create Custom Account</h3>
+                <Lock className="w-4 h-4 text-indigo-400" />
+                <h3 className="font-extrabold text-sm text-white">Log In to Your Vault</h3>
               </div>
-              <p className="text-[11px] text-slate-400">Initialize your offline master vault with your details</p>
+              <p className="text-[11px] text-slate-400">Enter your registered phone number and 4-digit PIN</p>
             </div>
 
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => handleNameChange(e.target.value)}
-                  placeholder="e.g. Adewale Lawson"
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
-                />
+            {loginError && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-rose-300 text-xs font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>{loginError}</span>
               </div>
+            )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Email Address</label>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="e.g. adewale@mail.com"
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">MeshTag Handle</label>
-                  <input
-                    type="text"
-                    required
-                    value={tag}
-                    onChange={(e) => setTag(e.target.value)}
-                    placeholder="e.g. $adewale_l"
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-mono font-bold text-indigo-400 focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
+            <div className="space-y-3.5">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
+                  <Smartphone className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Phone Number</span>
+                </label>
+                <input
+                  type="tel"
+                  required
+                  value={loginPhone}
+                  onChange={(e) => setLoginPhone(e.target.value)}
+                  placeholder="e.g. 08012345678"
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-mono font-bold text-white focus:outline-none focus:border-indigo-500"
+                />
               </div>
 
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider flex justify-between">
-                  <span>4-Digit Secure PIN</span>
-                  <span className="text-[9px] text-indigo-400 lowercase font-medium">Used to authorize transactions</span>
+                  <span className="flex items-center gap-1">
+                    <Lock className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>4-Digit PIN</span>
+                  </span>
+                  <span className="text-[9px] text-indigo-400 font-medium">System verification</span>
                 </label>
                 <input
                   type="password"
                   required
                   maxLength={4}
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  value={loginPin}
+                  onChange={(e) => setLoginPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
                   placeholder="••••"
                   className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-black tracking-widest text-center text-white focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
-              {/* Initial testing funds configuration */}
-              <div className="pt-2 border-t border-slate-800 space-y-3">
-                <div className="flex items-center gap-1 text-[11px] font-bold text-amber-400">
-                  <Wallet className="w-3.5 h-3.5" />
-                  <span>Setup Starter Testing Funds (MVP Sandbox)</span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                    <label className="text-[9px] font-extrabold text-slate-400 block uppercase">Naira (NGN) Balance</label>
-                    <select
-                      value={initialFundNgn}
-                      onChange={(e) => setInitialFundNgn(Number(e.target.value))}
-                      className="w-full bg-transparent font-mono text-xs font-black text-emerald-400 focus:outline-none mt-1"
-                    >
-                      <option value={200000} className="bg-slate-950">₦200,000 NGN</option>
-                      <option value={1000000} className="bg-slate-950">₦1,000,000 NGN</option>
-                      <option value={3000000} className="bg-slate-950">₦3,000,000 NGN</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                    <label className="text-[9px] font-extrabold text-slate-400 block uppercase">Dollar (USD) Balance</label>
-                    <select
-                      value={initialFundUsd}
-                      onChange={(e) => setInitialFundUsd(Number(e.target.value))}
-                      className="w-full bg-transparent font-mono text-xs font-black text-indigo-400 focus:outline-none mt-1"
-                    >
-                      <option value={500} className="bg-slate-950">$500 USD</option>
-                      <option value={2500} className="bg-slate-950">$2,500 USD</option>
-                      <option value={10000} className="bg-slate-950">$10,000 USD</option>
-                    </select>
-                  </div>
+              {/* Quick Preset Selector for Demo Ease */}
+              <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
+                <span className="text-[10px] text-slate-400 font-bold block">Quick Demo Accounts:</span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => { setLoginPhone('08012345678'); setLoginPin('1234'); setLoginError(''); }}
+                    className="p-2 bg-slate-950 hover:bg-slate-800 rounded-xl border border-slate-800 text-left transition-all"
+                  >
+                    <span className="text-[10px] font-bold text-indigo-300 block">Adewale</span>
+                    <span className="text-[9px] font-mono text-slate-400">08012345678 • PIN: 1234</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setLoginPhone('08098765432'); setLoginPin('5678'); setLoginError(''); }}
+                    className="p-2 bg-slate-950 hover:bg-slate-800 rounded-xl border border-slate-800 text-left transition-all"
+                  >
+                    <span className="text-[10px] font-bold text-emerald-300 block">Fatima</span>
+                    <span className="text-[9px] font-mono text-slate-400">08098765432 • PIN: 5678</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -306,10 +351,145 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               type="submit"
               className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-1.5 active:scale-95 mt-2"
             >
-              <span>Continue to KYC Check</span>
-              <ChevronRight className="w-4 h-4" />
+              <LogIn className="w-4 h-4" />
+              <span>Log In to Master Vault</span>
             </button>
           </form>
+        )}
+
+        {/* SIGN UP / ACCOUNT CREATION MODE */}
+        {authMode === 'signup' && (
+          <>
+            {/* Wizard Steps indicator */}
+            <div className="flex justify-between items-center px-4">
+              <div className="flex items-center gap-1.5">
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${step >= 1 ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}>1</div>
+                <span className="text-[10px] font-bold text-slate-300">Profile</span>
+              </div>
+              <div className="h-0.5 w-10 bg-slate-800 flex-1 mx-2" />
+              <div className="flex items-center gap-1.5">
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${step >= 2 ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}>2</div>
+                <span className="text-[10px] font-bold text-slate-300">KYC</span>
+              </div>
+              <div className="h-0.5 w-10 bg-slate-800 flex-1 mx-2" />
+              <div className="flex items-center gap-1.5">
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${step >= 3 ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}>3</div>
+                <span className="text-[10px] font-bold text-slate-300">Liveness</span>
+              </div>
+            </div>
+
+            {/* STEP 1: Profile Creation & Initial Testing Funds */}
+            {step === 1 && (
+              <form onSubmit={handleNextToKyc} className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-4 animate-fadeIn">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <User className="w-4 h-4 text-indigo-400" />
+                    <h3 className="font-extrabold text-sm text-white">Create Custom Account</h3>
+                  </div>
+                  <p className="text-[11px] text-slate-400">Initialize your offline master vault with your details</p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Full Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={name}
+                      onChange={(e) => handleNameChange(e.target.value)}
+                      placeholder="e.g. Adewale Lawson"
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
+                      <Smartphone className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Phone Number</span>
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="e.g. 08012345678"
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-mono font-bold text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Email Address</label>
+                      <input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="e.g. adewale@mail.com"
+                        className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">MeshTag Handle</label>
+                      <input
+                        type="text"
+                        required
+                        value={tag}
+                        onChange={(e) => setTag(e.target.value)}
+                        placeholder="e.g. $adewale_l"
+                        className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-mono font-bold text-indigo-400 focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider flex justify-between">
+                      <span>4-Digit Secure PIN</span>
+                      <span className="text-[9px] text-indigo-400 lowercase font-medium">Used to authorize transactions</span>
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      maxLength={4}
+                      value={pin}
+                      onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                      placeholder="••••"
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-black tracking-widest text-center text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  {/* Initial testing funds configuration (Dollar account removed as requested) */}
+                  <div className="pt-2 border-t border-slate-800 space-y-3">
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-amber-400">
+                      <Wallet className="w-3.5 h-3.5" />
+                      <span>Setup Starter Testing Funds (MVP Sandbox)</span>
+                    </div>
+
+                    <div className="space-y-1 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                      <label className="text-[9px] font-extrabold text-slate-400 block uppercase">Naira (NGN) Balance</label>
+                      <select
+                        value={initialFundNgn}
+                        onChange={(e) => setInitialFundNgn(Number(e.target.value))}
+                        className="w-full bg-transparent font-mono text-xs font-black text-emerald-400 focus:outline-none mt-1"
+                      >
+                        <option value={200000} className="bg-slate-950">₦200,000 NGN</option>
+                        <option value={1000000} className="bg-slate-950">₦1,000,000 NGN</option>
+                        <option value={3000000} className="bg-slate-950">₦3,000,000 NGN</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-1.5 active:scale-95 mt-2"
+                >
+                  <span>Continue to KYC Check</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </form>
+            )}
+          </>
         )}
 
         {/* STEP 2: Mini KYC Document Registry Verification */}

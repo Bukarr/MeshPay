@@ -55,7 +55,7 @@ export const QuickSendModal: React.FC<QuickSendModalProps> = ({
     {
       name: 'Adewale Lawson',
       tag: '$adewale_l',
-      bank: 'Wema Bank Vault',
+      bank: 'MeshPay Account',
       account: '9021849201',
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
       userIdMatch: 'user_1'
