@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Send, Radio, History, User } from 'lucide-react';
+import { LayoutDashboard, Send, History, User } from 'lucide-react';
 
 export type ActiveTab = 'dashboard' | 'remit' | 'nearby' | 'activity' | 'profile';
 
@@ -16,18 +16,23 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 }) => {
   const navItems = [
     { id: 'dashboard' as ActiveTab, label: 'Home', icon: LayoutDashboard },
-    { id: 'remit' as ActiveTab, label: 'Send', icon: Send },
-    { id: 'nearby' as ActiveTab, label: 'Offline Pay', icon: Radio, badge: pendingOfflineCount, highlight: true },
+    { 
+      id: 'remit' as ActiveTab, 
+      label: 'Send & Pay', 
+      icon: Send, 
+      badge: pendingOfflineCount, 
+      highlight: true 
+    },
     { id: 'activity' as ActiveTab, label: 'History', icon: History },
     { id: 'profile' as ActiveTab, label: 'Profile', icon: User },
   ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 text-slate-500 max-w-md mx-auto shadow-lg">
-      <div className="grid grid-cols-5 items-center justify-items-center h-16 px-1">
+      <div className="grid grid-cols-4 items-center justify-items-center h-16 px-2">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = activeTab === item.id;
+          const isActive = activeTab === item.id || (item.id === 'remit' && activeTab === 'nearby');
 
           return (
             <button
@@ -39,7 +44,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             >
               <div className="relative flex items-center justify-center">
                 {item.highlight ? (
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
                     isActive 
                       ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 scale-105' 
                       : 'bg-indigo-50 text-indigo-600 border border-indigo-200'
@@ -51,7 +56,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 )}
 
                 {item.badge && item.badge > 0 ? (
-                  <span className="absolute -top-1.5 -right-2 bg-amber-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center animate-bounce shadow-sm">
+                  <span className="absolute -top-1 -right-2 bg-amber-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center animate-bounce shadow-sm">
                     {item.badge}
                   </span>
                 ) : null}
@@ -69,5 +74,3 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     </nav>
   );
 };
-
-

@@ -177,6 +177,9 @@ export default function App() {
             isOnline={isOnline}
             onTransactionComplete={handleTransactionComplete}
             onCancel={() => setActiveTab('dashboard')}
+            onOpenReceiveQr={() => setShowReceiveQr(true)}
+            onOpenSendQr={() => setShowSendQr(true)}
+            triggerAutoSync={triggerAutoSync}
           />
         )}
 

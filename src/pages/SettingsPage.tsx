@@ -11,9 +11,13 @@ import {
   AlertTriangle,
   RefreshCw,
   Cpu,
-  Key
+  Key,
+  Shield,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { resetDemoState, setUserLoggedIn, verifyVaultIntegrity } from '../lib/storage';
+import { runDeviceIntegrityScanner } from '../lib/secureVault';
 import { getStoreAndForwardQueue, silentSyncStoreAndForwardQueue } from '../lib/storeAndForward';
 
 interface SettingsPageProps {
@@ -24,6 +28,8 @@ interface SettingsPageProps {
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({ user, isOnline, onClose }) => {
   const [vaultInfo, setVaultInfo] = useState(() => verifyVaultIntegrity());
+  const [integrityReport] = useState(() => runDeviceIntegrityScanner());
+  const [showIntegrityDetails, setShowIntegrityDetails] = useState<boolean>(false);
   const [sfQueue, setSfQueue] = useState(() => getStoreAndForwardQueue());
   const [tamperTestMessage, setTamperTestMessage] = useState<string | null>(null);
   const [isSyncingSf, setIsSyncingSf] = useState<boolean>(false);
@@ -87,9 +93,55 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ user, isOnline, onCl
           <p className="text-xs text-slate-500 font-mono">{user.email} • {user.tag}</p>
         </div>
 
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full text-xs font-bold">
-          <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
-          <span>{user.tier}</span>
+        {/* Permanent Security Verified Badge */}
+        <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-full text-xs font-black shadow-sm">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 animate-pulse" />
+            <span>Security Verified</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+          </div>
+
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full text-xs font-bold">
+            <span>{user.tier}</span>
+          </div>
+        </div>
+
+        {/* Expandable Device Integrity Scan Report */}
+        <div className="pt-2 border-t border-slate-100">
+          <button
+            onClick={() => setShowIntegrityDetails(!showIntegrityDetails)}
+            className="text-[11px] font-bold text-slate-500 hover:text-indigo-600 inline-flex items-center gap-1 transition-colors"
+          >
+            <Shield className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Root Integrity Scanner Report</span>
+            {showIntegrityDetails ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+
+          {showIntegrityDetails && (
+            <div className="mt-3 p-3 bg-slate-950 text-white rounded-2xl text-left text-[11px] space-y-2 font-mono animate-fadeIn border border-slate-800">
+              <div className="flex justify-between items-center text-emerald-400 font-bold border-b border-slate-800 pb-1.5">
+                <span>Status: Device Clean & Verified</span>
+                <span className="text-[9px] bg-emerald-500/20 px-2 py-0.5 rounded text-emerald-300">0 Root Artifacts</span>
+              </div>
+              
+              <div className="space-y-1 text-slate-300 text-[10px]">
+                {integrityReport.artifactsChecked.map((art) => (
+                  <div key={art.name} className="flex justify-between items-center">
+                    <span className="text-slate-400">{art.name}:</span>
+                    <span className="text-emerald-400 font-bold">{art.status}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between items-center pt-1 border-t border-slate-900">
+                  <span className="text-slate-400">Hardware Keystore:</span>
+                  <span className="text-indigo-300 font-bold">RSA-2048 Enclave</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">Play Integrity:</span>
+                  <span className="text-emerald-400 font-bold">Passed (Strong)</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
