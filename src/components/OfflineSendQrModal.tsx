@@ -11,7 +11,8 @@ import {
   AlertTriangle,
   Lock,
   Copy,
-  Check
+  Check,
+  RefreshCw
 } from 'lucide-react';
 import { UserProfile, Transaction } from '../types';
 import { addTransaction, generateOfflineSignature } from '../lib/storage';
@@ -23,6 +24,8 @@ import {
   EncryptedTxPayload,
   encryptTransactionPayload 
 } from '../lib/qrCrypto';
+import { BiometricModal } from './BiometricModal';
+import { SuccessCelebration } from './SuccessCelebration';
 
 interface OfflineSendQrModalProps {
   isOpen: boolean;
@@ -46,6 +49,7 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
   // Dynamic 5-minute code state
   const [cryptoCodeObj, setCryptoCodeObj] = useState(() => generateDynamicCryptoCode());
   const [secondsRemaining, setSecondsRemaining] = useState(300);
+  const [isExpired, setIsExpired] = useState(false);
 
   // Scanned & Verified Payload State
   const [verifiedTx, setVerifiedTx] = useState<EncryptedTxPayload | null>(null);
@@ -59,6 +63,8 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
   const [sendAmount, setSendAmount] = useState<number>(5000);
   const [sendNote, setSendNote] = useState<string>('Offline Encrypted QR Payment');
   const [paymentSuccess, setPaymentSuccess] = useState<boolean>(false);
+  const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [lastCompletedTx, setLastCompletedTx] = useState<Transaction | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -69,17 +75,24 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
   // Countdown timer for 5-minute dynamic code
   useEffect(() => {
     if (!isOpen) return;
+    setIsExpired(false);
     const interval = setInterval(() => {
       setSecondsRemaining((prev) => {
         if (prev <= 1) {
-          setCryptoCodeObj(generateDynamicCryptoCode());
-          return 300;
+          setIsExpired(true);
+          return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
   }, [isOpen]);
+
+  const handleRegenerateCode = () => {
+    setCryptoCodeObj(generateDynamicCryptoCode());
+    setSecondsRemaining(300);
+    setIsExpired(false);
+  };
 
   const stopCameraStream = () => {
     if (animFrameRef.current) {
@@ -250,10 +263,18 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
     }, 2200);
   };
 
-  const handleExecuteSend = () => {
+  const handleInitiateSend = () => {
     if (!scannedRecipient) return;
     if (sendAmount <= 0) return alert('Please enter a valid amount');
     if (sendAmount > user.ngnBalance) return alert('Insufficient NGN balance in offline vault');
+    if (isExpired) return alert('QR code session has expired. Please regenerate a 5-minute code.');
+
+    setShowAuthModal(true);
+  };
+
+  const handleAuthorizationSuccess = () => {
+    if (!scannedRecipient) return;
+    setShowAuthModal(false);
 
     const { signature, nonce } = generateOfflineSignature();
 
@@ -273,10 +294,11 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
       isOffline: true,
       offlineSignature: signature,
       offlineNonce: nonce,
-      notes: `${sendNote} (Verified via Encrypted QR Scan)`
+      notes: `${sendNote} (Verified via Encrypted QR Scan & Biometric Signature)`
     };
 
     addTransaction(tx);
+    setLastCompletedTx(tx);
 
     addNotification({
       type: 'offline_queue',
@@ -320,27 +342,17 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
         {/* Modal Body */}
         <div className="p-5 space-y-4 overflow-y-auto flex-1">
           {paymentSuccess ? (
-            <div className="py-6 text-center space-y-3 animate-fadeIn">
-              <div className="w-16 h-16 rounded-3xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center mx-auto">
-                <CheckCircle2 className="w-10 h-10" />
-              </div>
-              <div className="space-y-1">
-                <h4 className="font-black text-base text-white">Offline Transfer Complete!</h4>
-                <p className="text-xs text-slate-400">
-                  Sent <strong className="text-emerald-400">₦{sendAmount.toLocaleString()} NGN</strong> to {scannedRecipient?.name}
-                </p>
-              </div>
-
-              <button
-                onClick={() => {
-                  stopCameraStream();
-                  onClose();
-                }}
-                className="w-full py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-md"
-              >
-                Done & Return to App
-              </button>
-            </div>
+            <SuccessCelebration
+              title="P2P Payment Confirmed!"
+              message={`Successfully sent ₦${sendAmount.toLocaleString()} NGN to ${scannedRecipient?.name}. Signed with offline cryptographic signature.`}
+              amountDisplay={`₦${sendAmount.toLocaleString()} NGN`}
+              recipientName={scannedRecipient?.name}
+              txId={lastCompletedTx?.id}
+              onDone={() => {
+                stopCameraStream();
+                onClose();
+              }}
+            />
           ) : (
             <div className="space-y-3">
               <input 
@@ -350,6 +362,23 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
                 onChange={handleFileUpload} 
                 className="hidden" 
               />
+
+              {/* 5-Min Expiry Warning Banner */}
+              {isExpired && (
+                <div className="p-3 bg-amber-500/15 border border-amber-500/40 rounded-2xl text-amber-300 text-xs flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>QR Code Expired (5-Min Limit Exceeded)</span>
+                  </div>
+                  <button
+                    onClick={handleRegenerateCode}
+                    className="px-2.5 py-1 bg-amber-500 text-slate-950 font-black rounded-lg text-[10px] flex items-center gap-1 shadow-sm"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Renew</span>
+                  </button>
+                </div>
+              )}
 
               {/* Camera Scanner Viewfinder */}
               <div className="relative w-full h-48 bg-slate-950 rounded-2xl border-2 border-emerald-500/50 flex flex-col items-center justify-center overflow-hidden">
@@ -392,7 +421,10 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
                     <div className="flex gap-2 justify-center pt-1">
                       <button
                         onClick={handleStartCamera}
-                        className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-md"
+                        disabled={isExpired}
+                        className={`px-3.5 py-2 rounded-xl text-white text-[11px] font-bold flex items-center gap-1.5 shadow-md ${
+                          isExpired ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500'
+                        }`}
                       >
                         <Camera className="w-3.5 h-3.5" />
                         <span>Open Camera Scanner</span>
@@ -400,7 +432,10 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
 
                       <button
                         onClick={() => fileInputRef.current?.click()}
-                        className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] font-bold flex items-center gap-1.5"
+                        disabled={isExpired}
+                        className={`px-3 py-2 rounded-xl border border-slate-700 text-slate-200 text-[11px] font-bold flex items-center gap-1.5 ${
+                          isExpired ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-slate-800 hover:bg-slate-700'
+                        }`}
                       >
                         <Upload className="w-3.5 h-3.5 text-indigo-400" />
                         <span>Upload QR Image</span>
@@ -435,7 +470,10 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
                       <button
                         key={peer.id}
                         onClick={() => handleSelectSimulatedPeer(peer)}
-                        className="p-2 bg-slate-950 border border-slate-800 hover:border-emerald-500 rounded-xl text-left flex items-center gap-2 transition-all"
+                        disabled={isExpired}
+                        className={`p-2 bg-slate-950 border border-slate-800 rounded-xl text-left flex items-center gap-2 transition-all ${
+                          isExpired ? 'opacity-50 cursor-not-allowed' : 'hover:border-emerald-500'
+                        }`}
                       >
                         <img src={peer.avatar} alt={peer.name} className="w-7 h-7 rounded-lg object-cover" />
                         <div className="truncate">
@@ -473,11 +511,11 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
                   </div>
 
                   <button
-                    onClick={handleExecuteSend}
+                    onClick={handleInitiateSend}
                     className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs shadow-lg shadow-emerald-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
                   >
                     <Lock className="w-4 h-4" />
-                    <span>Confirm & Authorize ₦{sendAmount.toLocaleString()} Offline</span>
+                    <span>Authorize & Confirm ₦{sendAmount.toLocaleString()} Transfer</span>
                   </button>
                 </div>
               )}
@@ -494,8 +532,11 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
                   </p>
                   <button
                     onClick={handleToggleMicListener}
+                    disabled={isExpired}
                     className={`w-full py-2 rounded-xl text-xs font-extrabold transition-colors flex items-center justify-center gap-1.5 ${
-                      isListeningMic
+                      isExpired
+                        ? 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'
+                        : isListeningMic
                         ? 'bg-amber-500 text-slate-950 shadow-md'
                         : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700'
                     }`}
@@ -513,18 +554,32 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
                     <KeyRound className="w-3.5 h-3.5 text-amber-400" />
                     <span>5-Min Security Key</span>
                   </span>
-                  <span className="text-[10px] font-mono text-amber-400">Expires in {timerDisplay}</span>
+                  <span className={`text-[10px] font-mono font-bold ${isExpired ? 'text-red-400' : 'text-amber-400'}`}>
+                    {isExpired ? 'EXPIRED' : `Expires in ${timerDisplay}`}
+                  </span>
                 </div>
 
                 <div className="flex items-center justify-between bg-slate-900 p-2 rounded-xl border border-slate-800">
-                  <span className="font-mono text-xs font-black text-amber-400">{cryptoCodeObj.code}</span>
-                  <button
-                    onClick={handleCopyCode}
-                    className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-[10px] font-bold flex items-center gap-1"
-                  >
-                    {copiedCode ? <Check className="w-3 h-3 text-emerald-300" /> : <Copy className="w-3 h-3" />}
-                    <span>{copiedCode ? 'Copied' : 'Copy'}</span>
-                  </button>
+                  <span className="font-mono text-xs font-black text-amber-400">
+                    {isExpired ? '••••••••' : cryptoCodeObj.code}
+                  </span>
+                  {isExpired ? (
+                    <button
+                      onClick={handleRegenerateCode}
+                      className="px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 text-[10px] font-bold flex items-center gap-1"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Renew Code</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleCopyCode}
+                      className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-[10px] font-bold flex items-center gap-1"
+                    >
+                      {copiedCode ? <Check className="w-3 h-3 text-emerald-300" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedCode ? 'Copied' : 'Copy'}</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -544,6 +599,15 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Biometric Authorization Modal overlay (PIN / Liveness / Fingerprint) */}
+      <BiometricModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={handleAuthorizationSuccess}
+        amountDisplay={`₦${sendAmount.toLocaleString()} NGN`}
+        recipientDisplay={`${scannedRecipient?.name || ''} (${scannedRecipient?.bank || ''})`}
+      />
     </div>
   );
 };

@@ -131,101 +131,73 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </button>
         </div>
 
-        {/* Unified Master Vault Account Card */}
+        {/* Unified Single Currency Naira Vault Account Card */}
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 text-white shadow-xl relative overflow-hidden">
-          <div className="absolute right-0 top-0 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute left-0 bottom-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute right-0 top-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute left-0 bottom-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
 
           {/* Card Header */}
           <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
-            <div className="flex items-center gap-2">
-              <span className="w-8 h-8 rounded-2xl bg-gradient-to-r from-indigo-600 to-emerald-600 text-white font-extrabold text-xs flex items-center justify-center shadow-md">
-                ★
+            <div className="flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-2xl bg-emerald-600 text-slate-950 font-black text-sm flex items-center justify-center shadow-md shadow-emerald-500/20">
+                ₦
               </span>
               <div>
-                <span className="text-xs font-bold text-white block">MeshPay Master Vault</span>
-                <span className="text-[10px] text-slate-400 font-medium">Unified Portfolio</span>
+                <span className="text-xs font-black text-white block">MeshPay Single-Currency Vault</span>
+                <span className="text-[10px] text-emerald-400 font-bold">Nigerian Naira (NGN)</span>
               </div>
             </div>
 
-            <span className="text-[10px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-bold">
-              Tier 3 Secured
-            </span>
+            <button
+              onClick={() => setShowBalance(!showBalance)}
+              className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold flex items-center gap-1.5 transition-colors border border-slate-700"
+            >
+              {showBalance ? <EyeOff className="w-3.5 h-3.5 text-indigo-400" /> : <Eye className="w-3.5 h-3.5 text-emerald-400" />}
+              <span>{showBalance ? 'Hide' : 'Show'}</span>
+            </button>
           </div>
 
-          {/* Unified Balance displays (Naira and Dollars) */}
-          <div className="space-y-1 mt-2">
-            <span className="text-[10px] text-slate-400 uppercase tracking-widest font-black block">Total Combined Valuation</span>
-            <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
-              <div className="text-3xl font-black tracking-tight text-white">
-                {showBalance ? `₦${totalValuationNgn.toLocaleString('en-NG')}` : '••••••••'}
-              </div>
-              <div className="text-sm font-bold text-emerald-400">
-                {showBalance ? `≈ $${totalValuationUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD` : '••••••••'}
-              </div>
+          {/* Primary NGN Balance Display & USD Equivalent Below */}
+          <div className="space-y-1.5 mt-2">
+            <span className="text-[10px] text-slate-400 uppercase tracking-widest font-black block">Account Vault Balance</span>
+            <div className="text-3xl sm:text-4xl font-black tracking-tight text-white flex items-center gap-2">
+              <span>{showBalance ? `₦${user.ngnBalance.toLocaleString('en-NG', { minimumFractionDigits: 2 })}` : '••••••••'}</span>
+            </div>
+            {/* USD Equivalent Value below balance */}
+            <div className="text-sm font-extrabold text-emerald-400 flex items-center gap-1.5 pt-0.5">
+              <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wide">USD Equivalent:</span>
+              <span>{showBalance ? `≈ $${(user.ngnBalance / exchangeRate.usdToNgn).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD` : '••••••••'}</span>
             </div>
           </div>
 
-          {/* Breakdown of Sub-holdings (NGN and USD) under one roof */}
-          <div className="mt-5 pt-4 border-t border-slate-800 space-y-3">
-            <span className="text-[10px] text-indigo-300 uppercase tracking-wider font-extrabold block">Currency Holdings</span>
-            
-            <div className="grid grid-cols-2 gap-3">
-              {/* Local NGN Holdings Sub-vault */}
-              <div className="bg-slate-950/50 rounded-2xl p-3 border border-slate-800/80 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-slate-400 font-bold flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    NGN Vault
-                  </span>
-                  <span className="text-[9px] text-slate-500 font-mono">Local</span>
-                </div>
-                <div className="text-sm font-black text-white">
-                  {showBalance ? `₦${user.ngnBalance.toLocaleString('en-NG', { minimumFractionDigits: 2 })}` : '••••••••'}
-                </div>
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-[9px] text-slate-400 truncate max-w-[70px]">{user.bankName}</span>
-                  <button
-                    onClick={handleCopyAccount}
-                    className="text-[9px] bg-slate-800 hover:bg-slate-700 text-slate-200 px-1.5 py-0.5 rounded font-mono font-bold transition-all flex items-center gap-0.5 shrink-0"
-                  >
-                    {copiedAccount ? 'Copied' : user.virtualAccountNgn}
-                  </button>
-                </div>
-              </div>
-
-              {/* Global USD Holdings Sub-vault */}
-              <div className="bg-slate-950/50 rounded-2xl p-3 border border-slate-800/80 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-slate-400 font-bold flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                    USD Vault
-                  </span>
-                  <span className="text-[9px] text-slate-500 font-mono">Global</span>
-                </div>
-                <div className="text-sm font-black text-white">
-                  {showBalance ? `$${user.usdBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '••••••••'}
-                </div>
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-[9px] text-slate-400">Account No.</span>
-                  <span className="text-[9px] text-indigo-300 font-mono font-bold">{user.virtualAccountUsd}</span>
-                </div>
+          {/* Bank Account Info & Interbank Details */}
+          <div className="mt-5 pt-4 border-t border-slate-800 flex items-center justify-between bg-slate-950/60 p-3 rounded-2xl border border-slate-800/80">
+            <div>
+              <span className="text-[9px] text-slate-400 uppercase tracking-wider font-extrabold block">Virtual Bank Account</span>
+              <div className="text-xs font-black text-white flex items-center gap-1.5 mt-0.5">
+                <Building2 className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                <span>{user.bankName}</span>
               </div>
             </div>
+
+            <button
+              onClick={handleCopyAccount}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-mono font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-sm"
+            >
+              <Copy className="w-3 h-3 text-emerald-400" />
+              <span>{copiedAccount ? 'Copied' : user.virtualAccountNgn}</span>
+            </button>
           </div>
 
-          {/* Footer of Card with Rate and Deposit Action */}
-          <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
-            <span className="flex items-center gap-1 text-[11px]">
+          {/* Footer of Card with Live Rate */}
+          <div className="mt-3 pt-3 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-400">
+            <span className="flex items-center gap-1 text-[10px]">
               <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-              Rate: $1 = ₦{exchangeRate.usdToNgn.toLocaleString()}
+              Live Rate: $1 USD = ₦{exchangeRate.usdToNgn.toLocaleString()} NGN
             </span>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-slate-500 flex items-center gap-1">
-                <Building2 className="w-3 h-3 text-slate-400" />
-                Interbank Deposit
-              </span>
-            </div>
+            <span className="text-[9px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
+              Single-Currency Vault
+            </span>
           </div>
         </div>
       </div>

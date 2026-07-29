@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getOfflineQueuedTransactions, processSyncQueue } from '../lib/storage';
+import { getOfflineQueuedTransactions, processSyncQueue, isTamperDetected } from '../lib/storage';
+import { getStoreAndForwardQueue, StoreAndForwardPacket } from '../lib/storeAndForward';
 
 export interface SyncProgressState {
   isSyncing: boolean;
@@ -14,6 +15,8 @@ export function useNetworkStatus() {
   );
 
   const [isWeakSignal, setIsWeakSignal] = useState<boolean>(false);
+  const [sfQueue, setSfQueue] = useState<StoreAndForwardPacket[]>(() => getStoreAndForwardQueue());
+  const [tamperAlert, setTamperAlert] = useState<boolean>(() => isTamperDetected());
 
   const [syncState, setSyncState] = useState<SyncProgressState>({
     isSyncing: false,
@@ -21,6 +24,11 @@ export function useNetworkStatus() {
     progressPercent: 0,
     lastSyncedCount: 0
   });
+
+  const refreshQueue = useCallback(() => {
+    setSfQueue(getStoreAndForwardQueue());
+    setTamperAlert(isTamperDetected());
+  }, []);
 
   const checkConnectionQuality = useCallback(() => {
     if (typeof navigator === 'undefined' || !navigator.onLine) {
@@ -47,9 +55,14 @@ export function useNetworkStatus() {
       setRealOnline(false);
       setIsWeakSignal(false);
     };
+    const handleSfUpdated = () => refreshQueue();
+    const handleTamperAlert = () => setTamperAlert(true);
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('meshpay_store_forward_updated', handleSfUpdated);
+    window.addEventListener('meshpay_transactions_updated', handleSfUpdated);
+    window.addEventListener('meshpay_security_tamper_detected', handleTamperAlert);
 
     const conn = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
     if (conn) {
@@ -61,19 +74,22 @@ export function useNetworkStatus() {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('meshpay_store_forward_updated', handleSfUpdated);
+      window.removeEventListener('meshpay_transactions_updated', handleSfUpdated);
+      window.removeEventListener('meshpay_security_tamper_detected', handleTamperAlert);
       if (conn) {
         conn.removeEventListener('change', checkConnectionQuality);
       }
     };
-  }, [checkConnectionQuality]);
+  }, [checkConnectionQuality, refreshQueue]);
 
   const triggerAutoSync = useCallback(async () => {
-    const queued = getOfflineQueuedTransactions();
-    if (queued.length === 0) return;
+    const queuedCount = getOfflineQueuedTransactions().length + getStoreAndForwardQueue().filter(p => p.status === 'queued_store_forward').length;
+    if (queuedCount === 0) return;
 
     setSyncState({
       isSyncing: true,
-      stepMessage: 'Connecting to MeshPay Ledger... Reconciling offline nonces',
+      stepMessage: 'Store & Forward: Connecting to Mesh Core Node... Validating Nonces',
       progressPercent: 15,
       lastSyncedCount: 0
     });
@@ -87,9 +103,11 @@ export function useNetworkStatus() {
         }));
       });
 
+      refreshQueue();
+
       setSyncState({
         isSyncing: false,
-        stepMessage: `Synced ${result.syncedCount} transaction(s) successfully!`,
+        stepMessage: `Synced ${result.syncedCount} Store & Forward transaction(s) successfully!`,
         progressPercent: 100,
         lastSyncedCount: result.syncedCount
       });
@@ -100,29 +118,33 @@ export function useNetworkStatus() {
     } catch (err) {
       setSyncState({
         isSyncing: false,
-        stepMessage: 'Sync failed. Will auto-retry when connection stabilizes.',
+        stepMessage: 'Sync failed. Will auto-retry silently when connection stabilizes.',
         progressPercent: 0,
         lastSyncedCount: 0
       });
     }
-  }, []);
+  }, [refreshQueue]);
 
-  // When coming back online, auto-trigger sync if queue is not empty
+  // When coming back online, silently auto-trigger sync if store-and-forward queue has items
   useEffect(() => {
     if (realOnline && !isWeakSignal) {
-      const queued = getOfflineQueuedTransactions();
-      if (queued.length > 0) {
+      const queuedCount = getOfflineQueuedTransactions().length + getStoreAndForwardQueue().filter(p => p.status === 'queued_store_forward').length;
+      if (queuedCount > 0) {
         triggerAutoSync();
       }
     }
   }, [realOnline, isWeakSignal, triggerAutoSync]);
 
+  const pendingOfflineCount = getOfflineQueuedTransactions().length + sfQueue.filter(p => p.status === 'queued_store_forward').length;
+
   return {
     isOnline: realOnline,
     isWeakSignal,
+    isStoreAndForwardActive: !realOnline || isWeakSignal,
+    sfQueue,
+    tamperAlert,
     syncState,
     triggerAutoSync,
-    pendingOfflineCount: getOfflineQueuedTransactions().length
+    pendingOfflineCount
   };
 }
-

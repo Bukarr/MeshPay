@@ -20,6 +20,7 @@ import { UserProfile, ExchangeRate, NigerianBank, Transaction } from '../types';
 import { NIGERIAN_BANKS } from '../data/mockData';
 import { BiometricModal } from '../components/BiometricModal';
 import { addTransaction, generateOfflineSignature } from '../lib/storage';
+import { enqueueStoreAndForward } from '../lib/storeAndForward';
 import { addNotification } from '../lib/notifications';
 
 interface RemittancePageProps {
@@ -106,6 +107,30 @@ export const RemittancePage: React.FC<RemittancePageProps> = ({
     setShowBiometricModal(false);
     setStep(4); // Settlement phase
 
+    if (!isOnline) {
+      // Use Store & Forward Architecture: Instant Local Balance Deduction & Root-Proof Encrypted Vault Storage
+      const { transaction } = enqueueStoreAndForward({
+        type: 'usd_to_ngn',
+        sourceAmount: usdAmount,
+        sourceCurrency: 'USD',
+        targetAmount: ngnCalculated,
+        targetCurrency: 'NGN',
+        exchangeRate: rate,
+        fee: feeUsd,
+        recipientName: beneficiaryName,
+        recipientDetail: `${selectedBank.name} (${accountNumber})`,
+        bankName: selectedBank.name,
+        accountNumber: accountNumber,
+        notes: notes,
+        isCrossBorder: true
+      });
+
+      setTimeout(() => {
+        onTransactionComplete(transaction);
+      }, 2000);
+      return;
+    }
+
     const { signature, nonce } = generateOfflineSignature();
 
     const newTx: Transaction = {
@@ -120,8 +145,8 @@ export const RemittancePage: React.FC<RemittancePageProps> = ({
       recipientName: beneficiaryName,
       recipientDetail: `${selectedBank.name} (${accountNumber})`,
       timestamp: new Date().toISOString(),
-      status: isOnline ? 'completed' : 'queued_offline',
-      isOffline: !isOnline,
+      status: 'completed',
+      isOffline: false,
       offlineSignature: signature,
       offlineNonce: nonce,
       bankName: selectedBank.name,
@@ -133,8 +158,8 @@ export const RemittancePage: React.FC<RemittancePageProps> = ({
 
     // Create Notification
     addNotification({
-      type: isOnline ? 'transaction_success' : 'offline_queue',
-      title: isOnline ? 'USD Remittance Sent' : 'Offline Remittance Queued',
+      type: 'transaction_success',
+      title: 'USD Cross-Border Remittance Sent',
       message: `Transferred $${usdAmount}.00 USD (₦${ngnCalculated.toLocaleString()} NGN) to ${beneficiaryName}.`,
       txId: newTx.id,
       amountDisplay: `$${usdAmount}.00 USD`
@@ -174,15 +199,21 @@ export const RemittancePage: React.FC<RemittancePageProps> = ({
         </div>
       </div>
 
-      {/* Offline Suggestion Banner */}
+      {/* Store & Forward Active Banner */}
       {!isOnline && (
-        <div className="bg-amber-500 text-slate-950 p-3.5 rounded-2xl shadow-sm text-xs font-bold flex items-center justify-between gap-2">
-          <div>
-            <div className="font-black text-slate-950">You are currently offline</div>
-            <p className="text-[11px] text-slate-900 font-medium leading-tight">
-              Remittances queued offline will sync when connected. Or send instantly nearby via MeshPay Offline Pay.
-            </p>
+        <div className="bg-slate-900 border border-amber-500/40 text-white p-4 rounded-3xl shadow-md text-xs space-y-2 animate-fadeIn">
+          <div className="flex items-center justify-between">
+            <span className="font-black text-amber-400 flex items-center gap-1.5 text-xs">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              Store & Forward Architecture Active
+            </span>
+            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold">
+              Root Anti-Tamper Vault
+            </span>
           </div>
+          <p className="text-[11px] text-slate-300 font-medium leading-relaxed">
+            Sending while offline or on low connectivity? Your USD balance will be <strong>deducted locally immediately</strong>. The encrypted remittance packet is sealed with AES-256 MAC and will <strong>silently auto-sync</strong> when connectivity returns.
+          </p>
         </div>
       )}
 

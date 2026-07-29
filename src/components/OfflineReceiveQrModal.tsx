@@ -33,12 +33,14 @@ export const OfflineReceiveQrModal: React.FC<OfflineReceiveQrModalProps> = ({
   // Generated once and kept in state for 300 seconds
   const [cryptoCodeObj, setCryptoCodeObj] = useState(() => generateDynamicCryptoCode());
   const [secondsRemaining, setSecondsRemaining] = useState(300);
+  const [isExpired, setIsExpired] = useState(false);
 
-  // Reset or renew dynamic code when modal opens or timer expires
+  // Reset dynamic code when modal opens
   useEffect(() => {
     if (isOpen) {
       setCryptoCodeObj(generateDynamicCryptoCode());
       setSecondsRemaining(300);
+      setIsExpired(false);
       if (amountNgn) {
         setAmount(amountNgn);
       }
@@ -48,12 +50,12 @@ export const OfflineReceiveQrModal: React.FC<OfflineReceiveQrModalProps> = ({
   // Countdown timer for 5-minute (300 seconds) code expiry
   useEffect(() => {
     if (!isOpen) return;
+    setIsExpired(false);
     const interval = setInterval(() => {
       setSecondsRemaining((prev) => {
         if (prev <= 1) {
-          // Auto renew code after 5 minutes
-          setCryptoCodeObj(generateDynamicCryptoCode());
-          return 300;
+          setIsExpired(true);
+          return 0;
         }
         return prev - 1;
       });
@@ -61,6 +63,12 @@ export const OfflineReceiveQrModal: React.FC<OfflineReceiveQrModalProps> = ({
 
     return () => clearInterval(interval);
   }, [isOpen]);
+
+  const handleRenewCode = () => {
+    setCryptoCodeObj(generateDynamicCryptoCode());
+    setSecondsRemaining(300);
+    setIsExpired(false);
+  };
 
   // CRITICAL FIX: Memoize receivePayload so that it DOES NOT re-calculate every second on timer tick.
   // The QR code string will ONLY change when cryptoCodeObj.code or user/amount changes (i.e. every 5 minutes).
@@ -134,7 +142,7 @@ export const OfflineReceiveQrModal: React.FC<OfflineReceiveQrModalProps> = ({
         <div className="p-5 space-y-4 overflow-y-auto flex-1">
           {/* QR Code Display (Static for 5 minutes) */}
           <div className="text-center space-y-3">
-            <div className="p-4 bg-white rounded-3xl inline-block shadow-inner border-4 border-emerald-500/30 relative">
+            <div className="p-4 bg-white rounded-3xl inline-block shadow-inner border-4 border-emerald-500/30 relative overflow-hidden">
               <QRCodeCanvas 
                 id="offline-receive-qr-canvas"
                 value={receivePayload} 
@@ -142,6 +150,18 @@ export const OfflineReceiveQrModal: React.FC<OfflineReceiveQrModalProps> = ({
                 level="H" 
                 includeMargin={true} 
               />
+              {isExpired && (
+                <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-3 text-white space-y-2 animate-fadeIn">
+                  <div className="font-extrabold text-xs text-amber-400">QR Code Expired</div>
+                  <p className="text-[10px] text-slate-300">5-minute safety threshold reached</p>
+                  <button
+                    onClick={handleRenewCode}
+                    className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-[11px] rounded-xl shadow-md"
+                  >
+                    Generate New QR
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="text-center space-y-1">
@@ -163,7 +183,10 @@ export const OfflineReceiveQrModal: React.FC<OfflineReceiveQrModalProps> = ({
                     <button
                       key={preset}
                       type="button"
-                      onClick={() => setAmount(preset)}
+                      onClick={() => {
+                        setAmount(preset);
+                        if (isExpired) handleRenewCode();
+                      }}
                       className={`py-1.5 rounded-xl text-[10px] font-extrabold transition-all border ${
                         amount === preset
                           ? 'bg-emerald-600 text-white border-emerald-500 shadow-md'
@@ -195,7 +218,12 @@ export const OfflineReceiveQrModal: React.FC<OfflineReceiveQrModalProps> = ({
 
             <button
               onClick={handleDownloadQrCode}
-              className="w-full py-2.5 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xs font-bold text-emerald-300 flex items-center justify-center gap-2 transition-colors shadow-sm"
+              disabled={isExpired}
+              className={`w-full py-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-colors shadow-sm ${
+                isExpired
+                  ? 'bg-slate-800 border-slate-800 text-slate-500 cursor-not-allowed'
+                  : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-emerald-300'
+              }`}
             >
               <Download className="w-4 h-4 text-emerald-400" />
               <span>Download QR Code Image (PNG)</span>
@@ -209,8 +237,12 @@ export const OfflineReceiveQrModal: React.FC<OfflineReceiveQrModalProps> = ({
                 <KeyRound className="w-3.5 h-3.5 text-amber-400" />
                 <span>5-Minute Security Code</span>
               </div>
-              <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono font-bold px-2 py-0.5 rounded-full">
-                Changes in {timerDisplay}
+              <span className={`text-[10px] border font-mono font-bold px-2 py-0.5 rounded-full ${
+                isExpired
+                  ? 'bg-red-500/20 text-red-300 border-red-500/40'
+                  : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+              }`}>
+                {isExpired ? 'EXPIRED' : `Changes in ${timerDisplay}`}
               </span>
             </div>
 

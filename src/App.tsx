@@ -28,6 +28,7 @@ export default function App() {
   const {
     isOnline,
     isWeakSignal,
+    tamperAlert,
     syncState,
     triggerAutoSync,
     pendingOfflineCount
@@ -93,6 +94,8 @@ export default function App() {
       <Navbar
         user={user}
         isOnline={isOnline}
+        isWeakSignal={isWeakSignal}
+        tamperAlert={tamperAlert}
         pendingOfflineCount={pendingOfflineCount}
         onOpenSync={triggerAutoSync}
         onOpenSettings={() => setActiveTab('profile')}
@@ -100,6 +103,16 @@ export default function App() {
         displayCurrency={displayCurrency}
         onLogout={handleLogout}
       />
+
+      {/* Rooted Device Anti-Tamper Security Banner */}
+      {tamperAlert && (
+        <div className="bg-red-600 text-white px-4 py-2.5 shadow-md flex items-center justify-between text-xs max-w-md mx-auto font-bold animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-white animate-pulse" />
+            <span>Root Anti-Tamper Violation Neutralized! Local Storage HMAC seal verified & restored.</span>
+          </div>
+        </div>
+      )}
 
       {/* Automatic Network / Weak Signal Detection & Suggestion Banner */}
       {(!isOnline || isWeakSignal) && (

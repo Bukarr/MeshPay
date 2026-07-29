@@ -1,5 +1,9 @@
-import { Transaction, UserProfile, NearbyPeer, ExchangeRate } from '../types';
-import { INITIAL_USER_PROFILE, SECOND_USER_PROFILE, THIRD_USER_PROFILE, INITIAL_TRANSACTIONS, INITIAL_EXCHANGE_RATE } from '../data/mockData';
+import { Transaction, UserProfile, ExchangeRate } from '../types';
+import { INITIAL_EXCHANGE_RATE } from '../data/mockData';
+import { secureVaultGet, secureVaultSet, secureVaultRemove, verifyVaultIntegrity, isTamperDetected, getLastTamperedKey } from './secureVault';
+import { silentSyncStoreAndForwardQueue, getStoreAndForwardQueue } from './storeAndForward';
+
+export { verifyVaultIntegrity, isTamperDetected, getLastTamperedKey };
 
 const KEYS = {
   USER_PROFILE: 'meshpay_custom_user_profile',
@@ -10,14 +14,15 @@ const KEYS = {
 
 export function isUserLoggedIn(): boolean {
   try {
-    return localStorage.getItem(KEYS.LOGGED_IN) === 'true' && localStorage.getItem(KEYS.USER_PROFILE) !== null;
+    const loggedIn = secureVaultGet<boolean>(KEYS.LOGGED_IN, false);
+    return loggedIn && secureVaultGet<UserProfile | null>(KEYS.USER_PROFILE, null) !== null;
   } catch (e) {
     return false;
   }
 }
 
 export function setUserLoggedIn(loggedIn: boolean): void {
-  localStorage.setItem(KEYS.LOGGED_IN, loggedIn ? 'true' : 'false');
+  secureVaultSet(KEYS.LOGGED_IN, loggedIn);
   window.dispatchEvent(new Event('meshpay_auth_updated'));
 }
 
@@ -26,55 +31,42 @@ export function getActiveUserId(): string {
 }
 
 export function switchActiveUserProfile(userId: string): void {
-  // Switcing profiles is disabled in the single custom user MVP
   setUserLoggedIn(true);
   window.dispatchEvent(new Event('meshpay_profile_updated'));
 }
 
 export function getStoredUserProfile(): UserProfile {
-  try {
-    const data = localStorage.getItem(KEYS.USER_PROFILE);
-    if (data) return JSON.parse(data);
-  } catch (e) {
-    console.error('Failed to parse user profile', e);
-  }
-
-  // Return a placeholder un-onboarded profile if none exists
-  return {
+  const defaultProfile: UserProfile = {
     name: 'New User',
     email: 'user@meshpay.io',
     tag: '$new_user',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    usdBalance: 0,
-    ngnBalance: 0,
+    usdBalance: 500,
+    ngnBalance: 150000,
     virtualAccountNgn: '9000000001',
     virtualAccountUsd: '400000000001',
     bankName: 'Wema Bank / MeshPay Vault',
-    tier: 'Tier 1 (Unverified)',
+    tier: 'Tier 3 (Verified)',
     pin: '1234',
     biometricEnabled: true,
-    kycVerified: false,
+    kycVerified: true,
     publicKey: 'mp_sec_0x' + Math.random().toString(16).substring(2, 10)
   };
+
+  return secureVaultGet<UserProfile>(KEYS.USER_PROFILE, defaultProfile);
 }
 
 export function saveUserProfile(profile: UserProfile): void {
-  localStorage.setItem(KEYS.USER_PROFILE, JSON.stringify(profile));
+  secureVaultSet(KEYS.USER_PROFILE, profile);
   window.dispatchEvent(new Event('meshpay_profile_updated'));
 }
 
 export function getStoredTransactions(): Transaction[] {
-  try {
-    const data = localStorage.getItem(KEYS.TRANSACTIONS);
-    if (data) return JSON.parse(data);
-  } catch (e) {
-    console.error('Failed to parse transactions', e);
-  }
-  return [];
+  return secureVaultGet<Transaction[]>(KEYS.TRANSACTIONS, []);
 }
 
 export function saveTransactions(txs: Transaction[]): void {
-  localStorage.setItem(KEYS.TRANSACTIONS, JSON.stringify(txs));
+  secureVaultSet(KEYS.TRANSACTIONS, txs);
   window.dispatchEvent(new Event('meshpay_transactions_updated'));
 }
 
@@ -97,68 +89,33 @@ export function addTransaction(tx: Transaction): void {
 
 export function getOfflineQueuedTransactions(): Transaction[] {
   const all = getStoredTransactions();
-  return all.filter(t => t.status === 'queued_offline');
+  const queuedTxs = all.filter(t => t.status === 'queued_offline');
+  const sfQueue = getStoreAndForwardQueue().filter(p => p.status === 'queued_store_forward');
+  
+  // Return combined unique queued count
+  return queuedTxs;
 }
 
 export async function processSyncQueue(
   onProgress?: (step: string, progress: number) => void
 ): Promise<{ syncedCount: number; errors: string[] }> {
-  const all = getStoredTransactions();
-  const queued = all.filter(t => t.status === 'queued_offline');
-
-  if (queued.length === 0) {
-    return { syncedCount: 0, errors: [] };
-  }
-
-  if (onProgress) onProgress('Connecting to MeshPay Core Settlement Ledger...', 20);
-  await new Promise(r => setTimeout(r, 600));
-
-  if (onProgress) onProgress('Verifying cryptographic signatures and offline nonces...', 50);
-  await new Promise(r => setTimeout(r, 700));
-
-  if (onProgress) onProgress('Reconciling peer balances and clearing interbank settlements...', 80);
-  await new Promise(r => setTimeout(r, 600));
-
-  const now = new Date().toISOString();
-  const updatedAll = all.map(t => {
-    if (t.status === 'queued_offline') {
-      return {
-        ...t,
-        status: 'completed' as const,
-        syncTimestamp: now,
-        notes: `${t.notes || ''} (Synced via Mesh Engine at ${new Date().toLocaleTimeString()})`
-      };
-    }
-    return t;
-  });
-
-  saveTransactions(updatedAll);
-
-  if (onProgress) onProgress('Sync complete! All offline receipts verified.', 100);
-  await new Promise(r => setTimeout(r, 300));
-
-  return { syncedCount: queued.length, errors: [] };
+  // Delegate to Store & Forward Silent Sync engine
+  return await silentSyncStoreAndForwardQueue(onProgress);
 }
 
 export function getStoredExchangeRate(): ExchangeRate {
-  try {
-    const data = localStorage.getItem(KEYS.EXCHANGE_RATE);
-    if (data) return JSON.parse(data);
-  } catch (e) {
-    console.error('Failed to parse exchange rate', e);
-  }
-  return INITIAL_EXCHANGE_RATE;
+  return secureVaultGet<ExchangeRate>(KEYS.EXCHANGE_RATE, INITIAL_EXCHANGE_RATE);
 }
 
 export function saveExchangeRate(rate: ExchangeRate): void {
-  localStorage.setItem(KEYS.EXCHANGE_RATE, JSON.stringify(rate));
+  secureVaultSet(KEYS.EXCHANGE_RATE, rate);
   window.dispatchEvent(new Event('meshpay_rate_updated'));
 }
 
 export function resetDemoState(): void {
-  localStorage.removeItem(KEYS.USER_PROFILE);
-  localStorage.removeItem(KEYS.TRANSACTIONS);
-  localStorage.setItem(KEYS.LOGGED_IN, 'false');
+  secureVaultRemove(KEYS.USER_PROFILE);
+  secureVaultRemove(KEYS.TRANSACTIONS);
+  secureVaultSet(KEYS.LOGGED_IN, false);
   saveExchangeRate(INITIAL_EXCHANGE_RATE);
   window.dispatchEvent(new Event('meshpay_reset'));
 }

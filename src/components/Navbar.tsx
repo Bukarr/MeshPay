@@ -1,9 +1,12 @@
 import React from 'react';
-import { ShieldCheck, Zap, RefreshCw, Users, LogOut } from 'lucide-react';
+import { ShieldCheck, Zap, RefreshCw, LogOut, Wifi, WifiOff, AlertTriangle, Lock } from 'lucide-react';
 import { UserProfile } from '../types';
+
 interface NavbarProps {
   user: UserProfile;
   isOnline: boolean;
+  isWeakSignal?: boolean;
+  tamperAlert?: boolean;
   pendingOfflineCount: number;
   onOpenSync: () => void;
   onOpenSettings: () => void;
@@ -15,6 +18,8 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   user,
   isOnline,
+  isWeakSignal = false,
+  tamperAlert = false,
   pendingOfflineCount,
   onOpenSync,
   onOpenSettings,
@@ -34,12 +39,29 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div>
             <div className="flex items-center gap-1.5">
               <h1 className="font-black text-lg tracking-tight text-white">MeshPay</h1>
-              <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border ${
-                isOnline
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                  : 'bg-amber-500/20 text-amber-300 border-amber-500/30 animate-pulse'
+              <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
+                !isOnline
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                  : isWeakSignal
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                  : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
               }`}>
-                {isOnline ? 'Online' : 'Offline'}
+                {!isOnline ? (
+                  <>
+                    <WifiOff className="w-2.5 h-2.5 text-amber-400" />
+                    <span>Store & Forward (Offline)</span>
+                  </>
+                ) : isWeakSignal ? (
+                  <>
+                    <AlertTriangle className="w-2.5 h-2.5 text-amber-400" />
+                    <span>Weak Signal (S&F Active)</span>
+                  </>
+                ) : (
+                  <>
+                    <Wifi className="w-2.5 h-2.5 text-emerald-400" />
+                    <span>Online (Encrypted)</span>
+                  </>
+                )}
               </span>
             </div>
           </div>
@@ -47,10 +69,18 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right side controls: Currency & Utilities */}
         <div className="flex items-center gap-1.5">
-          {/* Active User Name Badge */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-800 border border-slate-700 text-indigo-300 text-[11px] font-extrabold">
-            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-            <span>{user.name.split(' ')[0]}</span>
+          {/* Root Anti-Tamper Security Badge */}
+          <div 
+            onClick={onOpenSettings}
+            className={`cursor-pointer flex items-center gap-1 px-2 py-1 rounded-xl border text-[10px] font-extrabold transition-all ${
+              tamperAlert
+                ? 'bg-red-500/20 text-red-300 border-red-500/40 animate-pulse'
+                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+            }`}
+            title="Encrypted Vault Anti-Rooting Security Status"
+          >
+            <Lock className="w-3 h-3 text-emerald-400" />
+            <span className="hidden sm:inline">{tamperAlert ? 'Tamper Alert' : 'AES-GCM Seal'}</span>
           </div>
 
           {/* Currency Toggle */}
@@ -69,7 +99,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={onOpenSync}
               className="p-1 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1 text-xs px-2"
-              title={`${pendingOfflineCount} transaction(s) queued`}
+              title={`${pendingOfflineCount} Store & Forward transaction(s) queued for silent sync`}
             >
               <RefreshCw className="w-3 h-3 text-amber-400 animate-spin" />
               <span className="font-extrabold text-[10px]">{pendingOfflineCount}</span>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { 
   User, 
@@ -7,9 +7,14 @@ import {
   RotateCcw, 
   CheckCircle2, 
   Users,
-  LogOut
+  LogOut,
+  AlertTriangle,
+  RefreshCw,
+  Cpu,
+  Key
 } from 'lucide-react';
-import { resetDemoState, setUserLoggedIn } from '../lib/storage';
+import { resetDemoState, setUserLoggedIn, verifyVaultIntegrity } from '../lib/storage';
+import { getStoreAndForwardQueue, silentSyncStoreAndForwardQueue } from '../lib/storeAndForward';
 
 interface SettingsPageProps {
   user: UserProfile;
@@ -18,11 +23,47 @@ interface SettingsPageProps {
 }
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({ user, isOnline, onClose }) => {
+  const [vaultInfo, setVaultInfo] = useState(() => verifyVaultIntegrity());
+  const [sfQueue, setSfQueue] = useState(() => getStoreAndForwardQueue());
+  const [tamperTestMessage, setTamperTestMessage] = useState<string | null>(null);
+  const [isSyncingSf, setIsSyncingSf] = useState<boolean>(false);
+
   const handleReset = () => {
     if (confirm('Reset MeshPay wallet state to initial balance?')) {
       resetDemoState();
       window.location.reload();
     }
+  };
+
+  const handleSimulateRootTampering = () => {
+    // Deliberately tamper raw localStorage to test Root Anti-Tamper Protection
+    try {
+      const raw = localStorage.getItem('meshpay_custom_user_profile');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        // Alter payload ciphertext to simulate a rooted device hacker editing file system
+        parsed.mac = 'TAMPERED_FORGED_MAC_000000000000000';
+        localStorage.setItem('meshpay_custom_user_profile', JSON.stringify(parsed));
+
+        setTamperTestMessage('Simulated root file modification! Attempting to access tampered vault...');
+        
+        setTimeout(() => {
+          // Re-verify vault integrity which will trigger MAC mismatch & anti-tamper rollback
+          const info = verifyVaultIntegrity();
+          setVaultInfo(info);
+          setTamperTestMessage('Anti-Tamper Defense Triggered! MAC Seal Mismatch detected, forged edit neutralized & restored safely.');
+        }, 800);
+      }
+    } catch (e) {
+      setTamperTestMessage('Failed to trigger test tampering.');
+    }
+  };
+
+  const handleSyncSfNow = async () => {
+    setIsSyncingSf(true);
+    await silentSyncStoreAndForwardQueue();
+    setIsSyncingSf(false);
+    setSfQueue(getStoreAndForwardQueue());
   };
 
   const handleLogout = () => {
@@ -91,6 +132,80 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ user, isOnline, onCl
               {user.publicKey}
             </code>
           </div>
+        </div>
+      </div>
+
+      {/* Root Anti-Tamper Security & AES-256 Vault Diagnostics */}
+      <div className="bg-slate-900 border border-slate-800 text-white rounded-3xl p-5 shadow-lg space-y-4 text-xs">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+            <div>
+              <h3 className="font-extrabold text-sm text-white">Root Anti-Tamper Security</h3>
+              <span className="text-[10px] text-slate-400">AES-256-GCM • HMAC MAC Seal</span>
+            </div>
+          </div>
+          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full font-bold">
+            {vaultInfo.isSecure ? '100% Secure' : 'Tamper Blocked'}
+          </span>
+        </div>
+
+        <div className="space-y-2 text-slate-300">
+          <div className="flex justify-between items-center text-[11px]">
+            <span className="text-slate-400">Hardware Root Fingerprint:</span>
+            <code className="text-indigo-300 font-mono font-bold bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+              {vaultInfo.deviceFingerprint}
+            </code>
+          </div>
+          <div className="flex justify-between items-center text-[11px]">
+            <span className="text-slate-400">Encrypted Local Envelopes:</span>
+            <span className="font-bold text-white font-mono">{vaultInfo.activeEnvelopesCount} items</span>
+          </div>
+        </div>
+
+        {/* Live Root Tamper Defense Interactive Simulation */}
+        <div className="pt-2 border-t border-slate-800 space-y-2">
+          <button
+            onClick={handleSimulateRootTampering}
+            className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+            <span>Test Root Storage Tamper Defense</span>
+          </button>
+
+          {tamperTestMessage && (
+            <div className="p-3 bg-slate-950 rounded-xl border border-amber-500/40 text-[11px] text-amber-300 font-mono leading-tight animate-fadeIn">
+              {tamperTestMessage}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Store & Forward Queue Diagnostics Card */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-3 text-xs">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+          <div className="flex items-center gap-2">
+            <Cpu className="w-4 h-4 text-indigo-600" />
+            <h3 className="font-extrabold text-xs text-slate-900">Store & Forward Queue Engine</h3>
+          </div>
+          <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full font-bold font-mono">
+            {sfQueue.filter(p => p.status === 'queued_store_forward').length} Queued
+          </span>
+        </div>
+
+        <div className="space-y-2 text-slate-600">
+          <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+            When you send money offline or on low connectivity (long-distance cross-border or local), MeshPay debits your balance locally right away, stores the encrypted packet in your vault, and silently forwards it when either user regains network access.
+          </p>
+
+          <button
+            onClick={handleSyncSfNow}
+            disabled={isSyncingSf}
+            className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-white ${isSyncingSf ? 'animate-spin' : ''}`} />
+            <span>{isSyncingSf ? 'Syncing Packets...' : 'Trigger Silent Store & Forward Sync'}</span>
+          </button>
         </div>
       </div>
 
