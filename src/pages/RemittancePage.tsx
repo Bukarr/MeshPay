@@ -19,7 +19,6 @@ import {
 import { UserProfile, ExchangeRate, NigerianBank, Transaction } from '../types';
 import { NIGERIAN_BANKS } from '../data/mockData';
 import { BiometricModal } from '../components/BiometricModal';
-import { SecurityModal } from '../components/SecurityModal';
 import { addTransaction, generateOfflineSignature } from '../lib/storage';
 import { addNotification } from '../lib/notifications';
 
@@ -54,7 +53,6 @@ export const RemittancePage: React.FC<RemittancePageProps> = ({
   const [beneficiaryName, setBeneficiaryName] = useState<string>('Oluwaseun Lawson');
   const [isVerifyingAccount, setIsVerifyingAccount] = useState<boolean>(false);
   const [bankSearchQuery, setBankSearchQuery] = useState<string>('');
-  const [showPinModal, setShowPinModal] = useState<boolean>(false);
   const [showBiometricModal, setShowBiometricModal] = useState<boolean>(false);
   const [notes, setNotes] = useState<string>('Family upkeep & support');
 
@@ -101,16 +99,10 @@ export const RemittancePage: React.FC<RemittancePageProps> = ({
     if (usdAmount > user.usdBalance) return alert(`Insufficient USD balance. Max available: $${user.usdBalance}`);
     if (accountNumber.length < 10) return alert('Please enter a valid 10-digit NGN account number');
 
-    // High Value Trigger check
-    if (usdAmount >= 100) {
-      setShowBiometricModal(true);
-    } else {
-      setShowPinModal(true);
-    }
+    setShowBiometricModal(true);
   };
 
   const handleAuthorizationSuccess = () => {
-    setShowPinModal(false);
     setShowBiometricModal(false);
     setStep(4); // Settlement phase
 
@@ -500,24 +492,13 @@ export const RemittancePage: React.FC<RemittancePageProps> = ({
         </div>
       )}
 
-      {/* Security PIN Modal (< $100) */}
-      <SecurityModal
-        isOpen={showPinModal}
-        onClose={() => setShowPinModal(false)}
-        onSuccess={handleAuthorizationSuccess}
-        title="Authorize USD Remittance"
-        amountDisplay={`$${usdAmount} USD → ₦${ngnCalculated.toLocaleString()} NGN`}
-        recipientDisplay={`${beneficiaryName} (${selectedBank.name})`}
-      />
-
-      {/* Biometric High-Value Overlay Modal (>= $100) */}
+      {/* Biometric Multi-Method Overlay Modal */}
       <BiometricModal
         isOpen={showBiometricModal}
         onClose={() => setShowBiometricModal(false)}
         onSuccess={handleAuthorizationSuccess}
         amountDisplay={`$${usdAmount}.00 USD (₦${ngnCalculated.toLocaleString()} NGN)`}
         recipientDisplay={`${beneficiaryName} (${selectedBank.name})`}
-        thresholdUsd={100}
       />
     </div>
   );

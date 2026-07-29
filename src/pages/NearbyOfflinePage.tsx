@@ -14,7 +14,8 @@ import {
   Clock, 
   CheckCircle2, 
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Camera
 } from 'lucide-react';
 import { UserProfile, NearbyPeer, Transaction } from '../types';
 import { useNearbyScan } from '../hooks/useNearbyScan';
@@ -28,6 +29,7 @@ interface NearbyOfflinePageProps {
   onTransactionComplete: (tx: Transaction) => void;
   triggerAutoSync: () => void;
   onOpenReceiveQr: () => void;
+  onOpenSendQr: () => void;
 }
 
 export const NearbyOfflinePage: React.FC<NearbyOfflinePageProps> = ({
@@ -35,7 +37,8 @@ export const NearbyOfflinePage: React.FC<NearbyOfflinePageProps> = ({
   isOnline,
   onTransactionComplete,
   triggerAutoSync,
-  onOpenReceiveQr
+  onOpenReceiveQr,
+  onOpenSendQr
 }) => {
   const [activeTab, setActiveTab] = useState<'radar' | 'queue'>('radar');
   const { isScanning, discoveredPeers, startScan, sendOfflineNearbyPayment } = useNearbyScan();
@@ -170,10 +173,10 @@ export const NearbyOfflinePage: React.FC<NearbyOfflinePageProps> = ({
               </button>
 
               <button
-                onClick={onOpenReceiveQr}
+                onClick={onOpenSendQr}
                 className="px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/20"
               >
-                <QrCode className="w-3.5 h-3.5" />
+                <Camera className="w-3.5 h-3.5" />
                 <span>Scan / Upload QR</span>
               </button>
 

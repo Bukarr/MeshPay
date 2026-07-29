@@ -2,22 +2,15 @@ import { Transaction, UserProfile, NearbyPeer, ExchangeRate } from '../types';
 import { INITIAL_USER_PROFILE, SECOND_USER_PROFILE, THIRD_USER_PROFILE, INITIAL_TRANSACTIONS, INITIAL_EXCHANGE_RATE } from '../data/mockData';
 
 const KEYS = {
-  ACTIVE_USER_ID: 'meshpay_active_user_id',
-  USER_1: 'meshpay_user_profile_1',
-  USER_2: 'meshpay_user_profile_2',
-  USER_3: 'meshpay_user_profile_3',
-  TXS_1: 'meshpay_transactions_user_1',
-  TXS_2: 'meshpay_transactions_user_2',
-  TXS_3: 'meshpay_transactions_user_3',
+  USER_PROFILE: 'meshpay_custom_user_profile',
+  TRANSACTIONS: 'meshpay_custom_transactions',
   EXCHANGE_RATE: 'meshpay_exchange_rate',
   LOGGED_IN: 'meshpay_is_logged_in'
 };
 
-export type UserIdType = 'user_1' | 'user_2' | 'user_3';
-
 export function isUserLoggedIn(): boolean {
   try {
-    return localStorage.getItem(KEYS.LOGGED_IN) === 'true';
+    return localStorage.getItem(KEYS.LOGGED_IN) === 'true' && localStorage.getItem(KEYS.USER_PROFILE) !== null;
   } catch (e) {
     return false;
   }
@@ -28,143 +21,78 @@ export function setUserLoggedIn(loggedIn: boolean): void {
   window.dispatchEvent(new Event('meshpay_auth_updated'));
 }
 
-export function getActiveUserId(): UserIdType {
-  try {
-    const id = localStorage.getItem(KEYS.ACTIVE_USER_ID) as UserIdType;
-    if (id === 'user_2' || id === 'user_3') return id;
-  } catch (e) {
-    console.error(e);
-  }
-  return 'user_1';
+export function getActiveUserId(): string {
+  return 'custom_user';
 }
 
-export function switchActiveUserProfile(userId: UserIdType): void {
-  localStorage.setItem(KEYS.ACTIVE_USER_ID, userId);
+export function switchActiveUserProfile(userId: string): void {
+  // Switcing profiles is disabled in the single custom user MVP
   setUserLoggedIn(true);
   window.dispatchEvent(new Event('meshpay_profile_updated'));
-  window.dispatchEvent(new Event('meshpay_transactions_updated'));
 }
 
-export function getStoredUserProfile(userId?: UserIdType): UserProfile {
-  const currentId = userId || getActiveUserId();
-  let key = KEYS.USER_1;
-  let defaultProfile = INITIAL_USER_PROFILE;
-
-  if (currentId === 'user_2') {
-    key = KEYS.USER_2;
-    defaultProfile = SECOND_USER_PROFILE;
-  } else if (currentId === 'user_3') {
-    key = KEYS.USER_3;
-    defaultProfile = THIRD_USER_PROFILE;
-  }
-
+export function getStoredUserProfile(): UserProfile {
   try {
-    const data = localStorage.getItem(key);
+    const data = localStorage.getItem(KEYS.USER_PROFILE);
     if (data) return JSON.parse(data);
   } catch (e) {
     console.error('Failed to parse user profile', e);
   }
 
-  saveUserProfile(defaultProfile, currentId);
-  return defaultProfile;
+  // Return a placeholder un-onboarded profile if none exists
+  return {
+    name: 'New User',
+    email: 'user@meshpay.io',
+    tag: '$new_user',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    usdBalance: 0,
+    ngnBalance: 0,
+    virtualAccountNgn: '9000000001',
+    virtualAccountUsd: '400000000001',
+    bankName: 'Wema Bank / MeshPay Vault',
+    tier: 'Tier 1 (Unverified)',
+    pin: '1234',
+    biometricEnabled: true,
+    kycVerified: false,
+    publicKey: 'mp_sec_0x' + Math.random().toString(16).substring(2, 10)
+  };
 }
 
-export function saveUserProfile(profile: UserProfile, userId?: UserIdType): void {
-  const currentId = userId || getActiveUserId();
-  let key = KEYS.USER_1;
-  if (currentId === 'user_2') key = KEYS.USER_2;
-  if (currentId === 'user_3') key = KEYS.USER_3;
-
-  localStorage.setItem(key, JSON.stringify(profile));
+export function saveUserProfile(profile: UserProfile): void {
+  localStorage.setItem(KEYS.USER_PROFILE, JSON.stringify(profile));
   window.dispatchEvent(new Event('meshpay_profile_updated'));
 }
 
-export function getStoredTransactions(userId?: UserIdType): Transaction[] {
-  const currentId = userId || getActiveUserId();
-  let key = KEYS.TXS_1;
-  if (currentId === 'user_2') key = KEYS.TXS_2;
-  if (currentId === 'user_3') key = KEYS.TXS_3;
-
+export function getStoredTransactions(): Transaction[] {
   try {
-    const data = localStorage.getItem(key);
+    const data = localStorage.getItem(KEYS.TRANSACTIONS);
     if (data) return JSON.parse(data);
   } catch (e) {
     console.error('Failed to parse transactions', e);
   }
-
-  const initial = currentId === 'user_1' ? INITIAL_TRANSACTIONS : [];
-  saveTransactions(initial, currentId);
-  return initial;
+  return [];
 }
 
-export function saveTransactions(txs: Transaction[], userId?: UserIdType): void {
-  const currentId = userId || getActiveUserId();
-  let key = KEYS.TXS_1;
-  if (currentId === 'user_2') key = KEYS.TXS_2;
-  if (currentId === 'user_3') key = KEYS.TXS_3;
-
-  localStorage.setItem(key, JSON.stringify(txs));
+export function saveTransactions(txs: Transaction[]): void {
+  localStorage.setItem(KEYS.TRANSACTIONS, JSON.stringify(txs));
   window.dispatchEvent(new Event('meshpay_transactions_updated'));
 }
 
 export function addTransaction(tx: Transaction): void {
-  const currentUserId = getActiveUserId();
-  const otherUserId = currentUserId === 'user_1' ? 'user_2' : 'user_1';
+  const allTxs = getStoredTransactions();
+  saveTransactions([tx, ...allTxs]);
 
-  // 1. Add to sender's transaction history
-  const senderTxs = getStoredTransactions(currentUserId);
-  saveTransactions([tx, ...senderTxs], currentUserId);
-
-  // 2. Update sender's balance
-  const senderProfile = getStoredUserProfile(currentUserId);
+  const profile = getStoredUserProfile();
   if (tx.sourceCurrency === 'USD') {
-    senderProfile.usdBalance = Math.max(0, senderProfile.usdBalance - tx.sourceAmount);
+    profile.usdBalance = Math.max(0, profile.usdBalance - tx.sourceAmount);
   } else if (tx.sourceCurrency === 'NGN' && tx.type !== 'nearby_receive') {
-    senderProfile.ngnBalance = Math.max(0, senderProfile.ngnBalance - tx.sourceAmount);
+    profile.ngnBalance = Math.max(0, profile.ngnBalance - tx.sourceAmount);
   }
 
   if (tx.type === 'nearby_receive' && tx.targetCurrency === 'NGN') {
-    senderProfile.ngnBalance += tx.targetAmount;
+    profile.ngnBalance += tx.targetAmount;
   }
-  saveUserProfile(senderProfile, currentUserId);
-
-  // 3. REAL P2P SIMULATION: If transferring to or receiving from the other user profile ($fatima_b or $adewale_l)
-  const otherProfile = getStoredUserProfile(otherUserId);
-  const isMatchTag = tx.recipientName.toLowerCase().includes(otherProfile.name.toLowerCase()) ||
-                     tx.recipientDetail.toLowerCase().includes(otherProfile.tag.toLowerCase());
-
-  if (isMatchTag || tx.type === 'nearby_send') {
-    // Credit the recipient profile in storage!
-    if (tx.targetCurrency === 'NGN') {
-      otherProfile.ngnBalance += tx.targetAmount;
-    } else if (tx.targetCurrency === 'USD') {
-      otherProfile.usdBalance += tx.targetAmount;
-    }
-    saveUserProfile(otherProfile, otherUserId);
-
-    // Add corresponding received transaction to recipient's ledger!
-    const recipientTx: Transaction = {
-      id: 'tx_p2p_recv_' + Date.now(),
-      type: 'nearby_receive',
-      sourceAmount: tx.targetAmount,
-      sourceCurrency: tx.targetCurrency,
-      targetAmount: tx.targetAmount,
-      targetCurrency: tx.targetCurrency,
-      exchangeRate: 1.0,
-      fee: 0,
-      recipientName: senderProfile.name,
-      recipientDetail: `${senderProfile.tag} (${senderProfile.virtualAccountNgn})`,
-      timestamp: new Date().toISOString(),
-      status: tx.status,
-      isOffline: tx.isOffline,
-      offlineSignature: tx.offlineSignature,
-      offlineNonce: tx.offlineNonce,
-      notes: `Received P2P payment from ${senderProfile.name}`
-    };
-
-    const recipientTxs = getStoredTransactions(otherUserId);
-    saveTransactions([recipientTx, ...recipientTxs], otherUserId);
-  }
+  saveUserProfile(profile);
 }
 
 export function getOfflineQueuedTransactions(): Transaction[] {
@@ -175,8 +103,7 @@ export function getOfflineQueuedTransactions(): Transaction[] {
 export async function processSyncQueue(
   onProgress?: (step: string, progress: number) => void
 ): Promise<{ syncedCount: number; errors: string[] }> {
-  const currentUserId = getActiveUserId();
-  const all = getStoredTransactions(currentUserId);
+  const all = getStoredTransactions();
   const queued = all.filter(t => t.status === 'queued_offline');
 
   if (queued.length === 0) {
@@ -205,7 +132,7 @@ export async function processSyncQueue(
     return t;
   });
 
-  saveTransactions(updatedAll, currentUserId);
+  saveTransactions(updatedAll);
 
   if (onProgress) onProgress('Sync complete! All offline receipts verified.', 100);
   await new Promise(r => setTimeout(r, 300));
@@ -229,15 +156,10 @@ export function saveExchangeRate(rate: ExchangeRate): void {
 }
 
 export function resetDemoState(): void {
-  saveUserProfile(INITIAL_USER_PROFILE, 'user_1');
-  saveUserProfile(SECOND_USER_PROFILE, 'user_2');
-  saveUserProfile(THIRD_USER_PROFILE, 'user_3');
-  saveTransactions(INITIAL_TRANSACTIONS, 'user_1');
-  saveTransactions([], 'user_2');
-  saveTransactions([], 'user_3');
+  localStorage.removeItem(KEYS.USER_PROFILE);
+  localStorage.removeItem(KEYS.TRANSACTIONS);
+  localStorage.setItem(KEYS.LOGGED_IN, 'false');
   saveExchangeRate(INITIAL_EXCHANGE_RATE);
-  localStorage.setItem(KEYS.ACTIVE_USER_ID, 'user_1');
-  setUserLoggedIn(true);
   window.dispatchEvent(new Event('meshpay_reset'));
 }
 

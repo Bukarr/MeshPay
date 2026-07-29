@@ -1,8 +1,6 @@
 import React from 'react';
 import { ShieldCheck, Zap, RefreshCw, Users, LogOut } from 'lucide-react';
 import { UserProfile } from '../types';
-import { UserIdType } from '../lib/storage';
-
 interface NavbarProps {
   user: UserProfile;
   isOnline: boolean;
@@ -11,8 +9,6 @@ interface NavbarProps {
   onOpenSettings: () => void;
   onToggleCurrency: () => void;
   displayCurrency: 'USD' | 'NGN';
-  activeUserId: UserIdType;
-  onSwitchUser: () => void;
   onLogout: () => void;
 }
 
@@ -24,8 +20,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenSettings,
   onToggleCurrency,
   displayCurrency,
-  activeUserId,
-  onSwitchUser,
   onLogout
 }) => {
   return (
@@ -51,18 +45,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Right side controls: Real Dual-User Switcher & Currency */}
+        {/* Right side controls: Currency & Utilities */}
         <div className="flex items-center gap-1.5">
-          {/* Active User Switcher Pill */}
-          <button
-            onClick={onSwitchUser}
-            className="flex items-center gap-1 px-2 py-1 rounded-xl bg-indigo-950/80 border border-indigo-700/60 text-indigo-200 hover:bg-indigo-900 transition-all text-xs font-bold"
-            title="Switch profile (User 1 / User 2 / User 3)"
-          >
-            <Users className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="text-[11px] font-semibold truncate max-w-[70px]">{user.name.split(' ')[0]}</span>
-            <span className="text-[9px] bg-indigo-600 text-white px-1 rounded font-extrabold">Switch</span>
-          </button>
+          {/* Active User Name Badge */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-800 border border-slate-700 text-indigo-300 text-[11px] font-extrabold">
+            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+            <span>{user.name.split(' ')[0]}</span>
+          </div>
 
           {/* Currency Toggle */}
           <button

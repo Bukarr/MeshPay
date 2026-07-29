@@ -9,7 +9,7 @@ import {
   Users,
   LogOut
 } from 'lucide-react';
-import { resetDemoState, getActiveUserId, switchActiveUserProfile, setUserLoggedIn } from '../lib/storage';
+import { resetDemoState, setUserLoggedIn } from '../lib/storage';
 
 interface SettingsPageProps {
   user: UserProfile;
@@ -18,8 +18,6 @@ interface SettingsPageProps {
 }
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({ user, isOnline, onClose }) => {
-  const activeUserId = getActiveUserId();
-
   const handleReset = () => {
     if (confirm('Reset MeshPay wallet state to initial balance?')) {
       resetDemoState();
@@ -29,62 +27,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ user, isOnline, onCl
 
   const handleLogout = () => {
     setUserLoggedIn(false);
+    window.location.reload();
   };
 
   return (
     <div className="space-y-4 pb-20 pt-3 px-4 max-w-md mx-auto text-slate-800">
-      {/* Active User Switcher Card */}
-      <div className="bg-indigo-900 text-white rounded-3xl p-4 shadow-md space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-indigo-300" />
-            <span className="text-xs font-bold text-indigo-200">Active Profile Account</span>
-          </div>
-          <span className="text-[10px] bg-indigo-700/80 px-2 py-0.5 rounded-full font-mono text-indigo-100 font-bold">
-            {activeUserId === 'user_1' ? 'Account 1' : activeUserId === 'user_2' ? 'Account 2' : 'Account 3'}
-          </span>
-        </div>
-        
-        <p className="text-[11px] text-indigo-200">
-          Switch profiles to send and receive real offline payments between <strong>Adewale</strong>, <strong>Fatima</strong>, and <strong>Chinedu</strong>.
-        </p>
-
-        <div className="grid grid-cols-3 gap-1.5 pt-1">
-          <button
-            onClick={() => switchActiveUserProfile('user_1')}
-            className={`py-2 px-1.5 rounded-xl text-[11px] font-extrabold transition-all flex items-center justify-center border ${
-              activeUserId === 'user_1'
-                ? 'bg-white text-indigo-950 border-white shadow-sm'
-                : 'bg-indigo-950/60 text-indigo-200 border-indigo-700/60 hover:bg-indigo-800'
-            }`}
-          >
-            <span>Adewale</span>
-          </button>
-
-          <button
-            onClick={() => switchActiveUserProfile('user_2')}
-            className={`py-2 px-1.5 rounded-xl text-[11px] font-extrabold transition-all flex items-center justify-center border ${
-              activeUserId === 'user_2'
-                ? 'bg-white text-indigo-950 border-white shadow-sm'
-                : 'bg-indigo-950/60 text-indigo-200 border-indigo-700/60 hover:bg-indigo-800'
-            }`}
-          >
-            <span>Fatima</span>
-          </button>
-
-          <button
-            onClick={() => switchActiveUserProfile('user_3')}
-            className={`py-2 px-1.5 rounded-xl text-[11px] font-extrabold transition-all flex items-center justify-center border ${
-              activeUserId === 'user_3'
-                ? 'bg-white text-indigo-950 border-white shadow-sm'
-                : 'bg-indigo-950/60 text-indigo-200 border-indigo-700/60 hover:bg-indigo-800'
-            }`}
-          >
-            <span>Chinedu</span>
-          </button>
-        </div>
-      </div>
-
       {/* Profile Header */}
       <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm text-center space-y-3">
         <div className="relative w-20 h-20 mx-auto">
@@ -135,7 +82,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ user, isOnline, onCl
               <Lock className="w-3.5 h-3.5 text-indigo-600" />
               Security PIN
             </span>
-            <span className="font-mono font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg">1234</span>
+            <span className="font-mono font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg">{user.pin}</span>
           </div>
 
           <div className="border-t border-slate-200 my-1 pt-2">

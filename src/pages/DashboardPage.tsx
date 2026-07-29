@@ -17,7 +17,9 @@ import {
   Zap,
   UserCheck,
   ShieldAlert,
-  Search
+  Search,
+  QrCode,
+  Camera
 } from 'lucide-react';
 import { UserProfile, Transaction, ExchangeRate } from '../types';
 import { FxRateChart } from '../components/FxRateChart';
@@ -33,6 +35,7 @@ interface DashboardPageProps {
   onNavigate: (tab: 'remit' | 'nearby' | 'activity') => void;
   onSelectTransaction: (tx: Transaction) => void;
   onOpenReceiveQr: () => void;
+  onOpenSendQr?: () => void;
   pendingOfflineCount: number;
   triggerAutoSync: () => void;
   onTransactionComplete?: (tx: Transaction) => void;
@@ -46,12 +49,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onNavigate,
   onSelectTransaction,
   onOpenReceiveQr,
+  onOpenSendQr,
   pendingOfflineCount,
   triggerAutoSync,
   onTransactionComplete
 }) => {
   const [showBalance, setShowBalance] = useState(true);
   const [copiedAccount, setCopiedAccount] = useState(false);
+
+  // Total Valuation Calculations
+  const totalValuationNgn = Math.round(user.ngnBalance + (user.usdBalance * exchangeRate.usdToNgn));
+  const totalValuationUsd = parseFloat(((user.ngnBalance / exchangeRate.usdToNgn) + user.usdBalance).toFixed(2));
 
   // Quick Send & Trust Board Modal states
   const [showQuickSend, setShowQuickSend] = useState(false);
@@ -123,83 +131,100 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </button>
         </div>
 
-        {/* Primary USD & NGN Cards */}
-        <div className="grid grid-cols-1 gap-3">
-          {/* USD Wallet Card - Dark Slate Accent Card */}
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 text-white shadow-xl relative overflow-hidden">
-            <div className="absolute right-0 top-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+        {/* Unified Master Vault Account Card */}
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 text-white shadow-xl relative overflow-hidden">
+          <div className="absolute right-0 top-0 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute left-0 bottom-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
 
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className="w-7 h-7 rounded-2xl bg-indigo-600 text-white font-extrabold text-xs flex items-center justify-center shadow-sm">
-                  $
-                </span>
-                <div>
-                  <span className="text-xs font-bold text-white block">USD Vault (Global)</span>
-                  <span className="text-[10px] text-slate-400 font-mono">{user.virtualAccountUsd}</span>
-                </div>
+          {/* Card Header */}
+          <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+            <div className="flex items-center gap-2">
+              <span className="w-8 h-8 rounded-2xl bg-gradient-to-r from-indigo-600 to-emerald-600 text-white font-extrabold text-xs flex items-center justify-center shadow-md">
+                ★
+              </span>
+              <div>
+                <span className="text-xs font-bold text-white block">MeshPay Master Vault</span>
+                <span className="text-[10px] text-slate-400 font-medium">Unified Portfolio</span>
               </div>
-
-              <span className="text-[10px] bg-slate-800 text-indigo-300 border border-indigo-500/30 px-2.5 py-0.5 rounded-full font-bold">
-                Tier 3 Primary
-              </span>
             </div>
 
-            <div className="text-3xl font-black tracking-tight text-white mt-3">
-              {showBalance ? `$${user.usdBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '••••••••'}
-            </div>
+            <span className="text-[10px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-bold">
+              Tier 3 Secured
+            </span>
+          </div>
 
-            <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
-              <span className="flex items-center gap-1">
-                <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-                Live Rate: $1 = ₦{exchangeRate.usdToNgn.toLocaleString()}
-              </span>
-              <button 
-                onClick={() => onNavigate('remit')}
-                className="text-indigo-400 font-bold hover:text-indigo-300 flex items-center gap-0.5 transition-colors"
-              >
-                Send Money <ChevronRight className="w-3.5 h-3.5" />
-              </button>
+          {/* Unified Balance displays (Naira and Dollars) */}
+          <div className="space-y-1 mt-2">
+            <span className="text-[10px] text-slate-400 uppercase tracking-widest font-black block">Total Combined Valuation</span>
+            <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
+              <div className="text-3xl font-black tracking-tight text-white">
+                {showBalance ? `₦${totalValuationNgn.toLocaleString('en-NG')}` : '••••••••'}
+              </div>
+              <div className="text-sm font-bold text-emerald-400">
+                {showBalance ? `≈ $${totalValuationUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD` : '••••••••'}
+              </div>
             </div>
           </div>
 
-          {/* NGN Wallet Card - Crisp White Container */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-5 text-slate-800 shadow-sm relative overflow-hidden">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className="w-7 h-7 rounded-2xl bg-emerald-100 text-emerald-800 font-extrabold text-xs flex items-center justify-center border border-emerald-200">
-                  ₦
-                </span>
-                <div>
-                  <span className="text-xs font-bold text-slate-800 block">NGN Local Vault</span>
-                  <span className="text-[10px] text-slate-500 font-medium">{user.bankName}</span>
+          {/* Breakdown of Sub-holdings (NGN and USD) under one roof */}
+          <div className="mt-5 pt-4 border-t border-slate-800 space-y-3">
+            <span className="text-[10px] text-indigo-300 uppercase tracking-wider font-extrabold block">Currency Holdings</span>
+            
+            <div className="grid grid-cols-2 gap-3">
+              {/* Local NGN Holdings Sub-vault */}
+              <div className="bg-slate-950/50 rounded-2xl p-3 border border-slate-800/80 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-400 font-bold flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    NGN Vault
+                  </span>
+                  <span className="text-[9px] text-slate-500 font-mono">Local</span>
+                </div>
+                <div className="text-sm font-black text-white">
+                  {showBalance ? `₦${user.ngnBalance.toLocaleString('en-NG', { minimumFractionDigits: 2 })}` : '••••••••'}
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[9px] text-slate-400 truncate max-w-[70px]">{user.bankName}</span>
+                  <button
+                    onClick={handleCopyAccount}
+                    className="text-[9px] bg-slate-800 hover:bg-slate-700 text-slate-200 px-1.5 py-0.5 rounded font-mono font-bold transition-all flex items-center gap-0.5 shrink-0"
+                  >
+                    {copiedAccount ? 'Copied' : user.virtualAccountNgn}
+                  </button>
                 </div>
               </div>
 
-              <button
-                onClick={handleCopyAccount}
-                className="text-[11px] bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 px-2.5 py-1 rounded-full flex items-center gap-1 font-mono font-bold transition-all"
-              >
-                {copiedAccount ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3 text-slate-500" />}
-                <span>{user.virtualAccountNgn}</span>
-              </button>
+              {/* Global USD Holdings Sub-vault */}
+              <div className="bg-slate-950/50 rounded-2xl p-3 border border-slate-800/80 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-400 font-bold flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                    USD Vault
+                  </span>
+                  <span className="text-[9px] text-slate-500 font-mono">Global</span>
+                </div>
+                <div className="text-sm font-black text-white">
+                  {showBalance ? `$${user.usdBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '••••••••'}
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[9px] text-slate-400">Account No.</span>
+                  <span className="text-[9px] text-indigo-300 font-mono font-bold">{user.virtualAccountUsd}</span>
+                </div>
+              </div>
             </div>
+          </div>
 
-            <div className="text-3xl font-black tracking-tight text-slate-900 mt-3">
-              {showBalance ? `₦${user.ngnBalance.toLocaleString('en-NG', { minimumFractionDigits: 2 })}` : '••••••••'}
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span className="flex items-center gap-1 font-medium">
-                <Building2 className="w-3.5 h-3.5 text-indigo-600" />
-                Instant Interbank Deposit
+          {/* Footer of Card with Rate and Deposit Action */}
+          <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+            <span className="flex items-center gap-1 text-[11px]">
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+              Rate: $1 = ₦{exchangeRate.usdToNgn.toLocaleString()}
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                <Building2 className="w-3 h-3 text-slate-400" />
+                Interbank Deposit
               </span>
-              <button 
-                onClick={() => onNavigate('nearby')}
-                className="text-indigo-600 font-bold hover:underline flex items-center gap-0.5"
-              >
-                Pay Offline <ChevronRight className="w-3.5 h-3.5" />
-              </button>
             </div>
           </div>
         </div>
@@ -302,41 +327,53 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       </div>
 
       {/* Quick Action Bar */}
-      <div className="grid grid-cols-4 gap-2.5">
-        <button
-          onClick={() => onNavigate('remit')}
-          className="flex flex-col items-center justify-center p-3.5 rounded-2xl bg-indigo-600 text-white font-bold shadow-md shadow-indigo-200 hover:bg-indigo-700 active:scale-95 transition-all"
-        >
-          <Send className="w-5 h-5 mb-1" />
-          <span className="text-[11px] leading-tight">Send Money</span>
-        </button>
+      <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-2.5">
+          <button
+            onClick={() => onNavigate('remit')}
+            className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-indigo-600 text-white font-bold shadow-md shadow-indigo-200 hover:bg-indigo-700 active:scale-95 transition-all"
+          >
+            <Send className="w-4 h-4" />
+            <span className="text-xs">Send Money</span>
+          </button>
 
-        <button
-          onClick={() => onNavigate('nearby')}
-          className="flex flex-col items-center justify-center p-3.5 rounded-2xl bg-white border border-slate-200 text-slate-800 font-bold shadow-sm hover:bg-slate-50 active:scale-95 transition-all relative"
-        >
-          {pendingOfflineCount > 0 && (
-            <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-amber-500 rounded-full animate-ping" />
-          )}
-          <Radio className="w-5 h-5 mb-1 text-indigo-600" />
-          <span className="text-[11px] leading-tight">Offline Pay</span>
-        </button>
+          <button
+            onClick={onOpenSendQr}
+            className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-slate-900 text-white font-bold border border-emerald-500/30 hover:bg-slate-800 active:scale-95 transition-all"
+          >
+            <Camera className="w-4 h-4 text-emerald-400" />
+            <span className="text-xs">Scan & Pay</span>
+          </button>
+        </div>
 
-        <button
-          onClick={onOpenReceiveQr}
-          className="flex flex-col items-center justify-center p-3.5 rounded-2xl bg-white border border-slate-200 text-slate-800 font-bold shadow-sm hover:bg-slate-50 active:scale-95 transition-all"
-        >
-          <ArrowDownLeft className="w-5 h-5 mb-1 text-emerald-600" />
-          <span className="text-[11px] leading-tight">Receive QR</span>
-        </button>
+        <div className="grid grid-cols-3 gap-2.5">
+          <button
+            onClick={onOpenReceiveQr}
+            className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-white border border-slate-200 text-slate-800 font-bold shadow-sm hover:bg-slate-50 active:scale-95 transition-all"
+          >
+            <QrCode className="w-4.5 h-4.5 mb-1 text-emerald-600" />
+            <span className="text-[10px] leading-tight font-extrabold">Receive QR</span>
+          </button>
 
-        <button
-          onClick={() => onNavigate('activity')}
-          className="flex flex-col items-center justify-center p-3.5 rounded-2xl bg-white border border-slate-200 text-slate-800 font-bold shadow-sm hover:bg-slate-50 active:scale-95 transition-all"
-        >
-          <History className="w-5 h-5 mb-1 text-slate-700" />
-          <span className="text-[11px] leading-tight">History</span>
-        </button>
+          <button
+            onClick={() => onNavigate('nearby')}
+            className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-white border border-slate-200 text-slate-800 font-bold shadow-sm hover:bg-slate-50 active:scale-95 transition-all relative"
+          >
+            {pendingOfflineCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-amber-500 rounded-full animate-ping" />
+            )}
+            <Radio className="w-4.5 h-4.5 mb-1 text-indigo-600" />
+            <span className="text-[10px] leading-tight font-extrabold">Offline Radar</span>
+          </button>
+
+          <button
+            onClick={() => onNavigate('activity')}
+            className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-white border border-slate-200 text-slate-800 font-bold shadow-sm hover:bg-slate-50 active:scale-95 transition-all"
+          >
+            <History className="w-4.5 h-4.5 mb-1 text-slate-700" />
+            <span className="text-[10px] leading-tight font-extrabold">History</span>
+          </button>
+        </div>
       </div>
 
       {/* Live FX Rate Sparkline Chart Component */}

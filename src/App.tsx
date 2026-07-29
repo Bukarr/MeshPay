@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Navbar } from './components/Navbar';
 import { BottomNav, ActiveTab } from './components/BottomNav';
 import { TransactionReceiptModal } from './components/TransactionReceiptModal';
-import { OfflineQrModal } from './components/OfflineQrModal';
+import { OfflineReceiveQrModal } from './components/OfflineReceiveQrModal';
+import { OfflineSendQrModal } from './components/OfflineSendQrModal';
 
 import { DashboardPage } from './pages/DashboardPage';
 import { RemittancePage } from './pages/RemittancePage';
@@ -17,10 +18,8 @@ import {
   getStoredTransactions, 
   getStoredExchangeRate,
   getActiveUserId,
-  switchActiveUserProfile,
   isUserLoggedIn,
-  setUserLoggedIn,
-  UserIdType
+  setUserLoggedIn
 } from './lib/storage';
 import { Transaction, Currency } from './types';
 import { Radio, RefreshCw, WifiOff, AlertTriangle } from 'lucide-react';
@@ -36,7 +35,6 @@ export default function App() {
 
   // Auth & Storage State
   const [isLoggedIn, setIsLoggedIn] = useState(() => isUserLoggedIn());
-  const [activeUserId, setActiveUserId] = useState(() => getActiveUserId());
   const [user, setUser] = useState(() => getStoredUserProfile());
   const [transactions, setTransactions] = useState(() => getStoredTransactions());
   const [exchangeRate, setExchangeRate] = useState(() => getStoredExchangeRate());
@@ -45,12 +43,12 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [showReceiveQr, setShowReceiveQr] = useState<boolean>(false);
+  const [showSendQr, setShowSendQr] = useState<boolean>(false);
   const [displayCurrency, setDisplayCurrency] = useState<Currency>('USD');
 
   // Reload local state on custom window storage events
   const reloadData = useCallback(() => {
     setIsLoggedIn(isUserLoggedIn());
-    setActiveUserId(getActiveUserId());
     setUser(getStoredUserProfile());
     setTransactions(getStoredTransactions());
     setExchangeRate(getStoredExchangeRate());
@@ -77,15 +75,6 @@ export default function App() {
     reloadData();
   };
 
-  const handleSwitchUser = () => {
-    let nextId: UserIdType = 'user_1';
-    if (activeUserId === 'user_1') nextId = 'user_2';
-    else if (activeUserId === 'user_2') nextId = 'user_3';
-    else nextId = 'user_1';
-
-    switchActiveUserProfile(nextId);
-  };
-
   const handleLogout = () => {
     setUserLoggedIn(false);
   };
@@ -109,8 +98,6 @@ export default function App() {
         onOpenSettings={() => setActiveTab('profile')}
         onToggleCurrency={toggleCurrency}
         displayCurrency={displayCurrency}
-        activeUserId={activeUserId}
-        onSwitchUser={handleSwitchUser}
         onLogout={handleLogout}
       />
 
@@ -163,6 +150,7 @@ export default function App() {
             onNavigate={(tab) => setActiveTab(tab as ActiveTab)}
             onSelectTransaction={(tx) => setSelectedTransaction(tx)}
             onOpenReceiveQr={() => setShowReceiveQr(true)}
+            onOpenSendQr={() => setShowSendQr(true)}
             pendingOfflineCount={pendingOfflineCount}
             triggerAutoSync={triggerAutoSync}
             onTransactionComplete={handleTransactionComplete}
@@ -186,6 +174,7 @@ export default function App() {
             onTransactionComplete={handleTransactionComplete}
             triggerAutoSync={triggerAutoSync}
             onOpenReceiveQr={() => setShowReceiveQr(true)}
+            onOpenSendQr={() => setShowSendQr(true)}
           />
         )}
 
@@ -223,11 +212,18 @@ export default function App() {
         onSyncNow={triggerAutoSync}
       />
 
-      <OfflineQrModal
+      <OfflineReceiveQrModal
         isOpen={showReceiveQr}
         onClose={() => setShowReceiveQr(false)}
         user={user}
         amountNgn={5000}
+      />
+
+      <OfflineSendQrModal
+        isOpen={showSendQr}
+        onClose={() => setShowSendQr(false)}
+        user={user}
+        onTransactionComplete={handleTransactionComplete}
       />
     </div>
   );

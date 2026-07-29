@@ -16,7 +16,7 @@ import {
 import { UserProfile, Transaction, Currency } from '../types';
 import { PRESET_ACCOUNTS, INITIAL_NEARBY_PEERS } from '../data/mockData';
 import { getTrustProfile, UserTrustProfile } from '../lib/trustScore';
-import { addTransaction, getStoredUserProfile, saveUserProfile, getStoredTransactions, saveTransactions } from '../lib/storage';
+import { addTransaction, getStoredUserProfile } from '../lib/storage';
 import { addNotification } from '../lib/notifications';
 
 interface QuickSendModalProps {
@@ -117,16 +117,7 @@ export const QuickSendModal: React.FC<QuickSendModalProps> = ({
     setIsProcessing(true);
 
     setTimeout(() => {
-      // 1. Deduct balance from current user
-      const updatedUser: UserProfile = { ...currentUser };
-      if (currency === 'NGN') {
-        updatedUser.ngnBalance -= amount;
-      } else {
-        updatedUser.usdBalance -= amount;
-      }
-      saveUserProfile(updatedUser);
-
-      // 2. Create outgoing transaction for sender
+      // Create outgoing transaction for sender
       const tx: Transaction = {
         id: 'tx_qs_' + Date.now(),
         type: currency === 'USD' ? 'usd_to_ngn' : 'nearby_send',
@@ -147,42 +138,6 @@ export const QuickSendModal: React.FC<QuickSendModalProps> = ({
       };
 
       addTransaction(tx);
-
-      // 3. If recipient corresponds to a local account (e.g., user_2 or user_3), credit their account!
-      if (selectedContact.userIdMatch) {
-        const recipientUserId = selectedContact.userIdMatch as 'user_1' | 'user_2' | 'user_3';
-        const recipientProfile = getStoredUserProfile(recipientUserId);
-        if (recipientProfile) {
-          if (currency === 'NGN') {
-            recipientProfile.ngnBalance += amount;
-          } else {
-            recipientProfile.usdBalance += amount;
-          }
-          saveUserProfile(recipientProfile, recipientUserId);
-
-          // Add receive transaction entry for recipient
-          const recTxList = getStoredTransactions(recipientUserId);
-          const recTx: Transaction = {
-            id: 'tx_rec_' + Date.now(),
-            type: 'nearby_receive',
-            sourceAmount: amount,
-            sourceCurrency: currency,
-            targetAmount: amount,
-            targetCurrency: currency,
-            exchangeRate: 1.0,
-            fee: 0,
-            recipientName: currentUser.name,
-            recipientDetail: `${currentUser.tag} (${currentUser.bankName})`,
-            timestamp: new Date().toISOString(),
-            status: 'completed',
-            isOffline: false,
-            bankName: currentUser.bankName,
-            accountNumber: currentUser.virtualAccountNgn,
-            notes: `Received Quick Send from ${currentUser.name}`
-          };
-          saveTransactions([recTx, ...recTxList], recipientUserId);
-        }
-      }
 
       // Add Notification
       addNotification({
