@@ -5,6 +5,8 @@ import { TransactionReceiptModal } from './components/TransactionReceiptModal';
 import { OfflineReceiveQrModal } from './components/OfflineReceiveQrModal';
 import { OfflineSendQrModal } from './components/OfflineSendQrModal';
 import { NotificationModal } from './components/NotificationModal';
+import { SyncReconciliationToast } from './components/SyncReconciliationToast';
+import { PwaInstallBanner } from './components/PwaInstallBanner';
 
 import { DashboardPage } from './pages/DashboardPage';
 import { RemittancePage } from './pages/RemittancePage';
@@ -14,6 +16,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
 
 import { useNetworkStatus } from './hooks/useNetworkStatus';
+import { initBackgroundSyncAndPwa } from './lib/backgroundSync';
 import { 
   getStoredUserProfile, 
   getStoredTransactions, 
@@ -66,6 +69,7 @@ export default function App() {
 
   useEffect(() => {
     const cleanupFx = initFx10MinAutoRefresh();
+    const cleanupSync = initBackgroundSyncAndPwa();
     window.addEventListener('meshpay_auth_updated', reloadData);
     window.addEventListener('meshpay_profile_updated', reloadData);
     window.addEventListener('meshpay_transactions_updated', reloadData);
@@ -75,6 +79,7 @@ export default function App() {
 
     return () => {
       cleanupFx();
+      cleanupSync();
       window.removeEventListener('meshpay_auth_updated', reloadData);
       window.removeEventListener('meshpay_profile_updated', reloadData);
       window.removeEventListener('meshpay_transactions_updated', reloadData);
@@ -105,6 +110,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased selection:bg-indigo-600 selection:text-white pb-16">
+      {/* Background Sync Reconciliation Toast Overlay */}
+      <SyncReconciliationToast onViewActivity={() => setActiveTab('activity')} />
+
       {/* Main Header Navbar */}
       <Navbar
         user={user}
@@ -120,6 +128,9 @@ export default function App() {
         displayCurrency={displayCurrency}
         onLogout={handleLogout}
       />
+
+      {/* PWA Install Banner */}
+      <PwaInstallBanner />
 
       {/* Rooted Device Anti-Tamper Security Banner */}
       {tamperAlert && (

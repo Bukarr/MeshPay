@@ -12,7 +12,8 @@ import {
   Cpu,
   Tv
 } from 'lucide-react';
-import { getStoredUserProfile } from '../lib/storage';
+import { getStoredUserProfile, saveUserProfile } from '../lib/storage';
+import { captureFrameFromVideo } from '../lib/avatarHelper';
 
 interface BiometricModalProps {
   isOpen: boolean;
@@ -108,6 +109,14 @@ export const BiometricModal: React.FC<BiometricModalProps> = ({
 
       if (progress >= 100) {
         clearInterval(interval);
+        // Capture face snapshot from live camera feed
+        if (videoRef.current) {
+          const faceSnap = captureFrameFromVideo(videoRef.current);
+          if (faceSnap) {
+            const currentUser = getStoredUserProfile();
+            saveUserProfile({ ...currentUser, avatar: faceSnap });
+          }
+        }
         cleanupCamera();
         setScanState('success');
         setTimeout(() => onSuccess(), 800);

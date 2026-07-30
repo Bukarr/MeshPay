@@ -20,12 +20,15 @@ import {
   ShieldAlert,
   Search,
   QrCode,
-  Camera
+  Camera,
+  Users
 } from 'lucide-react';
 import { UserProfile, Transaction, ExchangeRate } from '../types';
 import { FxRateChart } from '../components/FxRateChart';
 import { QuickSendModal } from '../components/QuickSendModal';
 import { TrustScoreBoardModal } from '../components/TrustScoreBoardModal';
+import { SyncContactsModal } from '../components/SyncContactsModal';
+import { SyncedContact } from '../lib/contacts';
 import { getTrustProfile } from '../lib/trustScore';
 
 interface DashboardPageProps {
@@ -62,11 +65,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const totalValuationNgn = Math.round(user.ngnBalance + (user.usdBalance * exchangeRate.usdToNgn));
   const totalValuationUsd = parseFloat(((user.ngnBalance / exchangeRate.usdToNgn) + user.usdBalance).toFixed(2));
 
-  // Quick Send & Trust Board Modal states
+  // Quick Send, Sync Contacts & Trust Board Modal states
   const [showQuickSend, setShowQuickSend] = useState(false);
   const [quickSendTag, setQuickSendTag] = useState('$fatima_b');
   const [showTrustBoard, setShowTrustBoard] = useState(false);
   const [trustBoardTarget, setTrustBoardTarget] = useState('$fatima_b');
+  const [showSyncContacts, setShowSyncContacts] = useState(false);
+
+  const handleSelectContactForTransfer = (contact: SyncedContact) => {
+    if (contact.tag) {
+      setQuickSendTag(contact.tag);
+      setShowQuickSend(true);
+    }
+  };
 
   const recentTxs = transactions.slice(0, 4);
 
@@ -218,15 +229,25 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
           </div>
 
-          <button
-            onClick={() => {
-              setQuickSendTag('$fatima_b');
-              setShowQuickSend(true);
-            }}
-            className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-md transition-all flex items-center gap-1"
-          >
-            <span>Quick Send ⚡</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowSyncContacts(true)}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-indigo-300 font-extrabold text-xs shadow-md transition-all flex items-center gap-1.5"
+            >
+              <Users className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Sync Contacts 📇</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setQuickSendTag('$fatima_b');
+                setShowQuickSend(true);
+              }}
+              className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-md transition-all flex items-center gap-1"
+            >
+              <span>Quick Send ⚡</span>
+            </button>
+          </div>
         </div>
 
         {/* Frequent Contacts Scroll Pill Row with Trust Badges */}
@@ -497,6 +518,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         onClose={() => setShowTrustBoard(false)}
         currentUser={user}
         initialSearchTarget={trustBoardTarget}
+      />
+
+      {/* SYNC CONTACTS MODAL */}
+      <SyncContactsModal
+        isOpen={showSyncContacts}
+        onClose={() => setShowSyncContacts(false)}
+        user={user}
+        onSelectContactForTransfer={(contact) => {
+          if (contact.tag) {
+            setQuickSendTag(contact.tag);
+            setShowQuickSend(true);
+          }
+        }}
       />
     </div>
   );

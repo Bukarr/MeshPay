@@ -21,6 +21,7 @@ import {
 import { saveUserProfile, setUserLoggedIn, getStoredUserProfile } from '../lib/storage';
 import { UserProfile } from '../types';
 import { INITIAL_USER_PROFILE, SECOND_USER_PROFILE, THIRD_USER_PROFILE } from '../data/mockData';
+import { generateSvgAvatar, captureFrameFromVideo } from '../lib/avatarHelper';
 
 interface LoginPageProps {
   onLoginSuccess: () => void;
@@ -31,8 +32,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [step, setStep] = useState<1 | 2 | 3>(1); // 1: Profile & Funding, 2: KYC Details, 3: Face Liveness Scan
   
   // Existing User Login Fields
-  const [loginPhone, setLoginPhone] = useState('08012345678');
-  const [loginPin, setLoginPin] = useState('1234');
+  const [loginPhone, setLoginPhone] = useState('');
+  const [loginPin, setLoginPin] = useState('');
   const [loginError, setLoginError] = useState('');
 
   // Sign Up Form fields
@@ -55,6 +56,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [livenessInstruction, setLivenessInstruction] = useState('Position your face in the circle');
   const [scanComplete, setScanComplete] = useState(false);
   const [cameraError, setCameraError] = useState(false);
+  const [capturedFaceAvatar, setCapturedFaceAvatar] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -182,6 +184,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setTimeout(() => {
       setScanProgress(100);
       setLivenessInstruction('KYC Face Verification Complete!');
+      if (videoRef.current) {
+        const snap = captureFrameFromVideo(videoRef.current);
+        if (snap) setCapturedFaceAvatar(snap);
+      }
       setScanComplete(true);
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(t => t.stop());
@@ -190,19 +196,40 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   };
 
   const finalizeOnboarding = () => {
-    const generatedNgnAccount = Math.floor(1000000000 + Math.random() * 9000000000).toString();
-    const generatedUsdAccount = Math.floor(100000000000 + Math.random() * 900000000000).toString();
+    const cleanPhoneDigits = (phone.trim() || '08012345678').replace(/\D/g, '');
+    let hashNum = 0;
+    for (let i = 0; i < cleanPhoneDigits.length; i++) {
+      hashNum = ((hashNum << 5) - hashNum) + cleanPhoneDigits.charCodeAt(i);
+      hashNum |= 0;
+    }
+    const positiveHash = Math.abs(hashNum);
+    const generatedNgnAccount = '9' + (positiveHash % 899999999 + 100000000).toString();
+    const generatedUsdAccount = '4' + (positiveHash % 89999999999 + 10000000000).toString();
+
+    const avatarUrl = capturedFaceAvatar || generateSvgAvatar(name);
+
+    // Check if profile for this phone number already exists in local vault to keep existing account numbers
+    const existingStored = getStoredUserProfile();
+    const cleanUserPhone = (phone || '').replace(/\D/g, '').replace(/^234/, '0');
+    const cleanStoredPhone = (existingStored.phone || '').replace(/\D/g, '').replace(/^234/, '0');
+
+    const ngnAccount = (cleanUserPhone === cleanStoredPhone && existingStored.virtualAccountNgn) 
+      ? existingStored.virtualAccountNgn 
+      : generatedNgnAccount;
+    const usdAccount = (cleanUserPhone === cleanStoredPhone && existingStored.virtualAccountUsd) 
+      ? existingStored.virtualAccountUsd 
+      : generatedUsdAccount;
 
     const finalProfile: UserProfile = {
       name,
       email,
       phone: phone.trim() || '08012345678',
       tag: tag.startsWith('$') ? tag : '$' + tag,
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      usdBalance: 2500,
+      avatar: avatarUrl,
+      usdBalance: 0.00,
       ngnBalance: initialFundNgn,
-      virtualAccountNgn: generatedNgnAccount,
-      virtualAccountUsd: generatedUsdAccount,
+      virtualAccountNgn: ngnAccount,
+      virtualAccountUsd: usdAccount,
       bankName: 'MeshPay Account',
       tier: 'Tier 3 (Verified)',
       pin,

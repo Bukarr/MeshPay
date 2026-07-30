@@ -3,7 +3,6 @@ import jsQR from 'jsqr';
 import { 
   X, 
   Camera, 
-  Mic, 
   CheckCircle2, 
   ShieldCheck, 
   Upload, 
@@ -12,7 +11,8 @@ import {
   Lock,
   Copy,
   Check,
-  RefreshCw
+  RefreshCw,
+  HelpCircle
 } from 'lucide-react';
 import { UserProfile, Transaction } from '../types';
 import { addTransaction, generateOfflineSignature } from '../lib/storage';
@@ -43,8 +43,8 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
   const [isScanningCamera, setIsScanningCamera] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
-  const [isListeningMic, setIsListeningMic] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [showCryptoExplainer, setShowCryptoExplainer] = useState(false);
 
   // Dynamic 5-minute code state
   const [cryptoCodeObj, setCryptoCodeObj] = useState(() => generateDynamicCryptoCode());
@@ -114,7 +114,6 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
       setVerifiedTx(null);
       setScanError(null);
       setCameraError(null);
-      setIsListeningMic(false);
     }
   }, [isOpen]);
 
@@ -249,20 +248,6 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
     processRawQrString(simulatedQr);
   };
 
-  const handleToggleMicListener = () => {
-    if (isListeningMic) {
-      setIsListeningMic(false);
-      return;
-    }
-
-    setIsListeningMic(true);
-    setTimeout(() => {
-      const matchPeer = INITIAL_NEARBY_PEERS[0];
-      setIsListeningMic(false);
-      handleSelectSimulatedPeer(matchPeer);
-    }, 2200);
-  };
-
   const handleInitiateSend = () => {
     if (!scannedRecipient) return;
     if (sendAmount <= 0) return alert('Please enter a valid amount');
@@ -276,40 +261,44 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
     if (!scannedRecipient) return;
     setShowAuthModal(false);
 
-    const { signature, nonce } = generateOfflineSignature();
+    try {
+      const { signature, nonce } = generateOfflineSignature();
 
-    const tx: Transaction = {
-      id: 'tx_p2p_off_' + Date.now(),
-      type: 'nearby_send',
-      sourceAmount: sendAmount,
-      sourceCurrency: 'NGN',
-      targetAmount: sendAmount,
-      targetCurrency: 'NGN',
-      exchangeRate: 1.0,
-      fee: 0,
-      recipientName: scannedRecipient.name,
-      recipientDetail: `${scannedRecipient.tag} (${scannedRecipient.bank})`,
-      timestamp: new Date().toISOString(),
-      status: 'queued_offline',
-      isOffline: true,
-      offlineSignature: signature,
-      offlineNonce: nonce,
-      notes: `${sendNote} (Verified via Encrypted QR Scan & Biometric Signature)`
-    };
+      const tx: Transaction = {
+        id: 'tx_p2p_off_' + Date.now(),
+        type: 'nearby_send',
+        sourceAmount: sendAmount,
+        sourceCurrency: 'NGN',
+        targetAmount: sendAmount,
+        targetCurrency: 'NGN',
+        exchangeRate: 1.0,
+        fee: 0,
+        recipientName: scannedRecipient.name,
+        recipientDetail: `${scannedRecipient.tag} (${scannedRecipient.bank})`,
+        timestamp: new Date().toISOString(),
+        status: 'queued_offline',
+        isOffline: true,
+        offlineSignature: signature,
+        offlineNonce: nonce,
+        notes: `${sendNote} (Verified via Encrypted QR Scan & Biometric Signature)`
+      };
 
-    addTransaction(tx);
-    setLastCompletedTx(tx);
+      addTransaction(tx);
+      setLastCompletedTx(tx);
 
-    addNotification({
-      type: 'offline_queue',
-      title: 'Encrypted Offline Payment Executed',
-      message: `Sent ₦${sendAmount.toLocaleString()} NGN to ${scannedRecipient.name} via verified QR scan.`,
-      txId: tx.id,
-      amountDisplay: `₦${sendAmount.toLocaleString()}`
-    });
+      addNotification({
+        type: 'offline_queue',
+        title: 'Encrypted Offline Payment Executed',
+        message: `Sent ₦${sendAmount.toLocaleString()} NGN to ${scannedRecipient.name} via verified QR scan.`,
+        txId: tx.id,
+        amountDisplay: `₦${sendAmount.toLocaleString()}`
+      });
 
-    setPaymentSuccess(true);
-    if (onTransactionComplete) onTransactionComplete(tx);
+      setPaymentSuccess(true);
+      if (onTransactionComplete) onTransactionComplete(tx);
+    } catch (err: any) {
+      alert(err.message || 'Offline payment failed.');
+    }
   };
 
   return (
@@ -520,67 +509,51 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
                 </div>
               )}
 
-              {/* Ultrasound microphone option */}
-              {!verifiedTx && (
-                <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 text-center space-y-2">
-                  <div className="text-xs font-extrabold text-slate-300 flex items-center justify-center gap-1.5">
-                    <Mic className="w-4 h-4 text-emerald-400" />
-                    <span>Ultrasound Acoustic Listener</span>
-                  </div>
-                  <p className="text-[10px] text-slate-400 max-w-[240px] mx-auto">
-                    Listens via microphone for nearby ultrasonic tone.
-                  </p>
-                  <button
-                    onClick={handleToggleMicListener}
-                    disabled={isExpired}
-                    className={`w-full py-2 rounded-xl text-xs font-extrabold transition-colors flex items-center justify-center gap-1.5 ${
-                      isExpired
-                        ? 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'
-                        : isListeningMic
-                        ? 'bg-amber-500 text-slate-950 shadow-md'
-                        : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700'
-                    }`}
-                  >
-                    <Mic className={`w-3.5 h-3.5 ${isListeningMic ? 'animate-bounce text-slate-950' : 'text-emerald-400'}`} />
-                    <span>{isListeningMic ? 'Listening for Soundwave...' : 'Start Ultrasound Listener'}</span>
-                  </button>
-                </div>
-              )}
-
-              {/* 5-minute code card */}
+              {/* Security & Anti-Replay Session Badge */}
               <div className="p-3 bg-slate-950 rounded-2xl border border-indigo-500/30 text-left text-xs space-y-2">
                 <div className="flex items-center justify-between text-[11px] text-indigo-300 font-extrabold">
-                  <span className="flex items-center gap-1">
-                    <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-                    <span>5-Min Security Key</span>
+                  <span className="flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span>5-Min Security Session</span>
                   </span>
-                  <span className={`text-[10px] font-mono font-bold ${isExpired ? 'text-red-400' : 'text-amber-400'}`}>
-                    {isExpired ? 'EXPIRED' : `Expires in ${timerDisplay}`}
+                  <span className={`text-[10px] font-mono font-extrabold px-2 py-0.5 rounded-full border ${
+                    isExpired ? 'bg-red-500/20 text-red-300 border-red-500/40' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  }`}>
+                    {isExpired ? 'EXPIRED' : `Valid: ${timerDisplay}`}
                   </span>
                 </div>
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  Camera QR scanner automatically validates encrypted payloads, single-use Nonce tokens, and HMAC checksums in offline mode.
+                </p>
 
-                <div className="flex items-center justify-between bg-slate-900 p-2 rounded-xl border border-slate-800">
-                  <span className="font-mono text-xs font-black text-amber-400">
-                    {isExpired ? '••••••••' : cryptoCodeObj.code}
+                {/* Learn Cryptographic Concepts */}
+                <button
+                  onClick={() => setShowCryptoExplainer(!showCryptoExplainer)}
+                  className="w-full py-1 text-[10px] text-indigo-300 hover:text-white font-extrabold flex items-center justify-between border-t border-indigo-900/60 pt-2"
+                >
+                  <span className="flex items-center gap-1">
+                    <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
+                    <span>How Offline Security Works (Nonce & HMAC)</span>
                   </span>
-                  {isExpired ? (
-                    <button
-                      onClick={handleRegenerateCode}
-                      className="px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 text-[10px] font-bold flex items-center gap-1"
-                    >
-                      <RefreshCw className="w-3 h-3" />
-                      <span>Renew Code</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleCopyCode}
-                      className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-[10px] font-bold flex items-center gap-1"
-                    >
-                      {copiedCode ? <Check className="w-3 h-3 text-emerald-300" /> : <Copy className="w-3 h-3" />}
-                      <span>{copiedCode ? 'Copied' : 'Copy'}</span>
-                    </button>
-                  )}
-                </div>
+                  <span>{showCryptoExplainer ? '▲ Hide' : '▼ Info'}</span>
+                </button>
+
+                {showCryptoExplainer && (
+                  <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-2 text-[10px] text-slate-300 leading-relaxed animate-fadeIn">
+                    <div>
+                      <span className="font-bold text-amber-300">1. Dynamic QR (Anti-Replay):</span>
+                      <p className="text-slate-400">Rotates every 5 minutes so captured QR images cannot be re-used.</p>
+                    </div>
+                    <div>
+                      <span className="font-bold text-amber-300">2. Single-Use Nonce:</span>
+                      <p className="text-slate-400">A cryptographic random string guaranteeing no double-spending.</p>
+                    </div>
+                    <div>
+                      <span className="font-bold text-amber-300">3. HMAC Integrity:</span>
+                      <p className="text-slate-400">Ensures transfer amounts cannot be altered in transit.</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

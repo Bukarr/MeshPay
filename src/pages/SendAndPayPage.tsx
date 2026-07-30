@@ -231,25 +231,30 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
     const bAccNum = isLocalBankPayout ? accountNumber : walletAddress;
 
     if (!isOnline) {
-      // Store & Forward Execution
-      const { transaction } = enqueueStoreAndForward({
-        type: sourceCurrencyCode === 'USD' ? 'usd_to_ngn' : 'ngn_to_usd',
-        sourceAmount: inputAmount,
-        sourceCurrency: sourceCurrencyCode as any,
-        targetAmount: Math.round(targetAmount),
-        targetCurrency: targetCurrencyCode as any,
-        exchangeRate: exchangeRate.usdToNgn,
-        fee: 0,
-        recipientName: recipientDisplayName,
-        recipientDetail: recipientDetailsStr,
-        bankName: bBankName,
-        accountNumber: bAccNum,
-        notes: notes || (transferDirection !== 'ngn_to_ngn' ? `Crypto/FX Wallet (${walletNetwork})` : 'Direct Bank Settlement'),
-        isCrossBorder: targetCurrencyCode !== 'NGN'
-      });
+      // Store & Forward Execution with Anti-Double-Spend Check
+      try {
+        const { transaction } = enqueueStoreAndForward({
+          type: sourceCurrencyCode === 'USD' ? 'usd_to_ngn' : 'ngn_to_usd',
+          sourceAmount: inputAmount,
+          sourceCurrency: sourceCurrencyCode as any,
+          targetAmount: Math.round(targetAmount),
+          targetCurrency: targetCurrencyCode as any,
+          exchangeRate: exchangeRate.usdToNgn,
+          fee: 0,
+          recipientName: recipientDisplayName,
+          recipientDetail: recipientDetailsStr,
+          bankName: bBankName,
+          accountNumber: bAccNum,
+          notes: notes || (transferDirection !== 'ngn_to_ngn' ? `Crypto/FX Wallet (${walletNetwork})` : 'Direct Bank Settlement'),
+          isCrossBorder: targetCurrencyCode !== 'NGN'
+        });
 
-      onTransactionComplete(transaction);
-      return;
+        onTransactionComplete(transaction);
+        return;
+      } catch (err: any) {
+        alert(err.message || 'Store & Forward queueing failed.');
+        return;
+      }
     }
 
     const { signature, nonce } = generateOfflineSignature();
@@ -292,18 +297,22 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
     setShowPinModal(false);
     if (!selectedPeer) return;
 
-    const tx = sendOfflineNearbyPayment(selectedPeer, meshAmount, meshNote);
-    
-    addNotification({
-      type: isOnline ? 'transaction_success' : 'offline_queue',
-      title: 'Bluetooth Mesh Payment Completed',
-      message: `Transferred ₦${meshAmount.toLocaleString()} to ${selectedPeer.name} via local Mesh protocol.`,
-      txId: tx.id,
-      amountDisplay: `₦${meshAmount.toLocaleString()}`
-    });
+    try {
+      const tx = sendOfflineNearbyPayment(selectedPeer, meshAmount, meshNote, !isOnline);
+      
+      addNotification({
+        type: isOnline ? 'transaction_success' : 'offline_queue',
+        title: 'Bluetooth Mesh Payment Completed',
+        message: `Transferred ₦${meshAmount.toLocaleString()} to ${selectedPeer.name} via local Mesh protocol.`,
+        txId: tx.id,
+        amountDisplay: `₦${meshAmount.toLocaleString()}`
+      });
 
-    onTransactionComplete(tx);
-    setSelectedPeer(null);
+      onTransactionComplete(tx);
+      setSelectedPeer(null);
+    } catch (err: any) {
+      alert(err.message || 'Payment failed.');
+    }
   };
 
   const handlePasteWalletAddress = async () => {

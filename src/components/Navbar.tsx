@@ -62,7 +62,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Right side controls: Currency & Utilities */}
+        {/* Right side controls: Notification & Sync Utilities */}
         <div className="flex items-center gap-1.5">
           {/* Notification Center Trigger */}
           <button
@@ -78,30 +78,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </button>
 
-          {/* Root Anti-Tamper Security Badge */}
-          <div 
-            onClick={onOpenSettings}
-            className={`cursor-pointer flex items-center gap-1 px-2 py-1 rounded-xl border text-[10px] font-extrabold transition-all ${
-              tamperAlert
-                ? 'bg-red-500/20 text-red-300 border-red-500/40 animate-pulse'
-                : 'bg-slate-800 text-slate-300 border-slate-700'
-            }`}
-            title="Encrypted Vault Anti-Rooting Security Status"
-          >
-            <Lock className="w-3 h-3 text-indigo-400" />
-          </div>
-
-          {/* Currency Toggle */}
-          <button
-            onClick={onToggleCurrency}
-            className="px-2 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold border border-slate-700 transition-colors text-slate-300"
-            title="Toggle currency view"
-          >
-            <span className={displayCurrency === 'USD' ? 'text-indigo-400 font-extrabold' : 'text-slate-400'}>USD</span>
-            <span className="text-slate-600">/</span>
-            <span className={displayCurrency === 'NGN' ? 'text-emerald-400 font-extrabold' : 'text-slate-400'}>NGN</span>
-          </button>
-
           {/* Sync indicator if pending */}
           {pendingOfflineCount > 0 && (
             <button
@@ -113,15 +89,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="font-extrabold text-[10px]">{pendingOfflineCount}</span>
             </button>
           )}
-
-          {/* Logout Button */}
-          <button
-            onClick={onLogout}
-            className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 transition-colors"
-            title="Log out to Login Page"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-          </button>
         </div>
       </div>
     </header>

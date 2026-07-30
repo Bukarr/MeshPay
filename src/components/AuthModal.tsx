@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Lock, Mail, User, ShieldCheck, KeyRound, Sparkles, X, ArrowRight, CheckCircle2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { UserProfile } from '../types';
 import { saveUserProfile } from '../lib/storage';
+import { generateSvgAvatar } from '../lib/avatarHelper';
 import { INITIAL_USER_PROFILE } from '../data/mockData';
 
 interface AuthModalProps {
@@ -91,7 +92,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         email: email,
         phone: '08012345678',
         tag: userTag.startsWith('$') ? userTag : `$${userTag}`,
-        avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
+        avatar: generateSvgAvatar(fullName),
         usdBalance: 1000.00,
         ngnBalance: 500000.00,
         virtualAccountNgn: '9' + Math.floor(100000000 + Math.random() * 900000000),

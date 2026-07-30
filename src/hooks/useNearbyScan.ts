@@ -12,19 +12,19 @@ export function useNearbyScan() {
     setIsScanning(true);
     setDiscoveredPeers([]);
     
-    // Simulate finding peers incrementally like radar scan
+    // Simulate finding peers incrementally like BLE radar scan
     setTimeout(() => {
       setDiscoveredPeers([INITIAL_NEARBY_PEERS[0]]);
-    }, 800);
+    }, 600);
 
     setTimeout(() => {
       setDiscoveredPeers([INITIAL_NEARBY_PEERS[0], INITIAL_NEARBY_PEERS[1]]);
-    }, 1800);
+    }, 1400);
 
     setTimeout(() => {
       setDiscoveredPeers(INITIAL_NEARBY_PEERS);
       setIsScanning(false);
-    }, 3000);
+    }, 2200);
   }, []);
 
   useEffect(() => {
@@ -36,12 +36,12 @@ export function useNearbyScan() {
     peer: NearbyPeer,
     amountNgn: number,
     notes: string,
-    isOfflineMode: boolean
+    isOfflineMode: boolean = true
   ): Transaction => {
     const { signature, nonce } = generateOfflineSignature();
     
     const tx: Transaction = {
-      id: 'tx_offline_' + Date.now(),
+      id: 'tx_offline_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
       type: 'nearby_send',
       sourceAmount: amountNgn,
       sourceCurrency: 'NGN',

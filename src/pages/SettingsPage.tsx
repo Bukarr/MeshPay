@@ -14,11 +14,14 @@ import {
   Key,
   Shield,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Smartphone,
+  Download
 } from 'lucide-react';
 import { resetDemoState, setUserLoggedIn, verifyVaultIntegrity } from '../lib/storage';
 import { runDeviceIntegrityScanner } from '../lib/secureVault';
 import { getStoreAndForwardQueue, silentSyncStoreAndForwardQueue } from '../lib/storeAndForward';
+import { isPwaInstallable, promptPwaInstall } from '../lib/backgroundSync';
 
 interface SettingsPageProps {
   user: UserProfile;
@@ -33,6 +36,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ user, isOnline, onCl
   const [sfQueue, setSfQueue] = useState(() => getStoreAndForwardQueue());
   const [tamperTestMessage, setTamperTestMessage] = useState<string | null>(null);
   const [isSyncingSf, setIsSyncingSf] = useState<boolean>(false);
+  const [showLogoutConfirmModal, setShowLogoutConfirmModal] = useState<boolean>(false);
 
   const handleReset = () => {
     if (confirm('Reset MeshPay wallet state to initial balance?')) {
@@ -261,18 +265,91 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ user, isOnline, onCl
         </div>
       </div>
 
-      {/* Wallet Management */}
-      <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-3">
-        <h3 className="font-extrabold text-xs text-slate-500 uppercase tracking-wider">Wallet Operations</h3>
+      {/* Progressive Web App (PWA) & Offline Shell Card */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-3 text-xs">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+          <div className="flex items-center gap-2">
+            <Smartphone className="w-4 h-4 text-indigo-600" />
+            <h3 className="font-extrabold text-xs text-slate-900">PWA & Offline Service Worker</h3>
+          </div>
+          <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-bold font-mono">
+            Active Shell
+          </span>
+        </div>
 
-        <button
-          onClick={handleReset}
-          className="w-full py-3.5 rounded-2xl bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-sm"
-        >
-          <RotateCcw className="w-4 h-4 text-rose-600" />
-          <span>Reset Wallet State</span>
-        </button>
+        <div className="space-y-2 text-slate-600">
+          <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+            MeshPay is equipped with a full Progressive Web App (PWA) Service Worker engine. Install it on your mobile device or desktop home screen to enable native offline wallet capabilities, background sync, and instant load times.
+          </p>
+
+          <button
+            onClick={promptPwaInstall}
+            className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+          >
+            <Download className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Install MeshPay Web App</span>
+          </button>
+        </div>
       </div>
+
+      {/* Wallet Management & Logout */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-3">
+        <h3 className="font-extrabold text-xs text-slate-500 uppercase tracking-wider">Account & Wallet Operations</h3>
+
+        <div className="grid grid-cols-1 gap-2.5">
+          <button
+            onClick={() => setShowLogoutConfirmModal(true)}
+            className="w-full py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs flex items-center justify-center gap-2 transition-all shadow-md active:scale-98"
+          >
+            <LogOut className="w-4 h-4 text-rose-400" />
+            <span>Log Out of MeshPay Account</span>
+          </button>
+
+          <button
+            onClick={handleReset}
+            className="w-full py-3 rounded-2xl bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-sm"
+          >
+            <RotateCcw className="w-4 h-4 text-rose-600" />
+            <span>Reset Wallet State</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Logout Confirmation Alert Prompt Modal */}
+      {showLogoutConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-fadeIn">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 text-white space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center mx-auto text-rose-400">
+              <LogOut className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <h3 className="font-extrabold text-base text-white">Log Out Confirmation</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Are you sure you want to log out of your MeshPay account?
+              </p>
+              <p className="text-[10px] text-emerald-400 font-mono bg-emerald-950/60 p-2 rounded-xl border border-emerald-500/30 mt-2">
+                Your encrypted local vault & queued offline transactions will remain safely secured on this device.
+              </p>
+            </div>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                onClick={() => setShowLogoutConfirmModal(false)}
+                className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex-1 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs shadow-lg shadow-rose-600/30 transition-colors"
+              >
+                Yes, Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -5,15 +5,22 @@
  * across local peer-to-peer and long-distance/cross-border remittances.
  * 
  * Key Principles:
- * 1. Immediate Local State Settlement: Sender balance is debited locally right away to prevent double spending.
+ * 1. Immediate Local State Settlement: Deducts available balance locally and enforces anti-double-spending.
  * 2. Root-Proof Encrypted Queueing: Packet is stored & encrypted via SecureVault (AES-256-GCM + HMAC seal).
  * 3. Silent Background Synchronization: Automatically forwards and reconciles queued packets when network stabilizes.
  */
 
 import { Transaction, Currency, UserProfile } from '../types';
 import { secureVaultGet, secureVaultSet } from './secureVault';
-import { getStoredUserProfile, saveUserProfile, getStoredTransactions, saveTransactions } from './storage';
-import { addNotification } from './notifications';
+import { 
+  getStoredUserProfile, 
+  getUserKeyPrefix,
+  addTransaction, 
+  validateBalanceForTransfer,
+  addNotification,
+  saveTransactions,
+  getStoredTransactions
+} from './storage';
 
 export interface StoreAndForwardPacket {
   id: string;
@@ -75,7 +82,7 @@ export function saveStoreAndForwardQueue(queue: StoreAndForwardPacket[]): void {
 
 /**
  * Enqueue a transaction in the Store & Forward Architecture.
- * Debits the sender's balance LOCALLY immediately, creates an encrypted queue entry,
+ * Validates available balance to prevent double spending, creates an encrypted queue entry,
  * and records the offline transaction status.
  */
 export function enqueueStoreAndForward(params: {
@@ -94,6 +101,16 @@ export function enqueueStoreAndForward(params: {
   isCrossBorder?: boolean;
 }): { transaction: Transaction; packet: StoreAndForwardPacket } {
   const user = getStoredUserProfile();
+  const userPhoneKey = getUserKeyPrefix(user.phone);
+
+  // 1. DEDUCT & CHECK SENDER AVAILABLE BALANCE LOCALLY (Anti-Double Spending Rule)
+  if (params.type !== 'nearby_receive') {
+    const check = validateBalanceForTransfer(userPhoneKey, params.sourceCurrency, params.sourceAmount);
+    if (!check.valid) {
+      throw new Error(check.error || 'Double-spend prevented: Insufficient available funds.');
+    }
+  }
+
   const txId = 'tx_sf_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
   const nonce = 'NONCE_SF_' + Math.random().toString(36).substring(2, 10).toUpperCase();
   const signature = 'SIG_0x' + Array.from({ length: 8 }, () => Math.floor(Math.random() * 16).toString(16)).join('').toUpperCase();
@@ -132,25 +149,11 @@ export function enqueueStoreAndForward(params: {
     isCrossBorder: !!params.isCrossBorder
   };
 
-  // 1. DEDUCT SENDER BALANCE LOCALLY IMMEDIATELY (Prevent Double-Spending)
-  if (params.sourceCurrency === 'USD') {
-    user.usdBalance = Math.max(0, user.usdBalance - params.sourceAmount);
-  } else if (params.sourceCurrency === 'NGN' && params.type !== 'nearby_receive') {
-    user.ngnBalance = Math.max(0, user.ngnBalance - params.sourceAmount);
-  }
-
-  // If receiving locally in Store & Forward peer mode, credit locally immediately
-  if (params.type === 'nearby_receive' && params.targetCurrency === 'NGN') {
-    user.ngnBalance += params.targetAmount;
-  }
-
-  saveUserProfile(user);
-
   // 2. SAVE IN ENCRYPTED STORE & FORWARD QUEUE
   const queue = getStoreAndForwardQueue();
   saveStoreAndForwardQueue([packet, ...queue]);
 
-  // 3. CREATE LOCAL TRANSACTION ENTRY
+  // 3. CREATE & SAVE LOCAL TRANSACTION VIA INTEGRATED LEDGER ENGINE (With Multi-Node BLE Mesh Peer Sync)
   const newTx: Transaction = {
     id: txId,
     type: params.type,
@@ -172,17 +175,14 @@ export function enqueueStoreAndForward(params: {
     notes: `${params.notes || ''} [Store & Forward Queued - Proof: ${proofHash.slice(0, 10)}]`
   };
 
-  const existingTxs = getStoredTransactions();
-  saveTransactions([newTx, ...existingTxs]);
+  addTransaction(newTx, userPhoneKey);
 
   // 4. ADD NOTIFICATION
   addNotification({
-    type: 'offline_queue',
+    type: 'offline_sync',
     title: params.isCrossBorder ? 'Cross-Border Store & Forward Queued' : 'Store & Forward Packet Saved',
     message: `Debited ${params.sourceCurrency} balance locally. Packet will silently forward when connected.`,
-    txId: newTx.id,
-    amountDisplay: `${params.sourceCurrency === 'USD' ? '$' : '₦'}${params.sourceAmount.toLocaleString()}`
-  });
+  }, userPhoneKey);
 
   return { transaction: newTx, packet };
 }
@@ -202,13 +202,13 @@ export async function silentSyncStoreAndForwardQueue(
   }
 
   if (onProgress) onProgress('Store & Forward: Connecting to Mesh Settlement Node...', 20);
-  await new Promise(r => setTimeout(r, 600));
+  await new Promise(r => setTimeout(r, 400));
 
   if (onProgress) onProgress('Verifying AES-256 MAC cryptographic proofs and nonces...', 60);
-  await new Promise(r => setTimeout(r, 700));
+  await new Promise(r => setTimeout(r, 400));
 
   if (onProgress) onProgress('Forwarding packets & reconciling interbank balances...', 85);
-  await new Promise(r => setTimeout(r, 600));
+  await new Promise(r => setTimeout(r, 400));
 
   const now = new Date().toISOString();
   let syncedCount = 0;
@@ -228,35 +228,44 @@ export async function silentSyncStoreAndForwardQueue(
 
   saveStoreAndForwardQueue(updatedQueue);
 
-  // Update Main Transactions List
-  const allTxs = getStoredTransactions();
+  // Update Main Transactions List across accounts
+  const allKnownPhones = ['08012345678', '08098765432', '07011223344'];
   const syncedTxIds = new Set(pendingPackets.map(p => p.id));
 
-  const updatedTxs = allTxs.map(t => {
-    if (syncedTxIds.has(t.id) || t.status === 'queued_offline') {
-      return {
-        ...t,
-        status: 'completed' as const,
-        syncTimestamp: now,
-        notes: `${t.notes || ''} (Store & Forward Settled silently at ${new Date().toLocaleTimeString()})`
-      };
+  for (const phone of allKnownPhones) {
+    const txs = getStoredTransactions(phone);
+    let updated = false;
+    const newTxs = txs.map(t => {
+      if (syncedTxIds.has(t.id) || t.status === 'queued_offline') {
+        updated = true;
+        return {
+          ...t,
+          status: 'completed' as const,
+          syncTimestamp: now,
+          notes: `${t.notes || ''} (Store & Forward Settled silently at ${new Date().toLocaleTimeString()})`
+        };
+      }
+      return t;
+    });
+    if (updated) {
+      saveTransactions(newTxs, phone);
     }
-    return t;
-  });
-
-  saveTransactions(updatedTxs);
+  }
 
   // Trigger silent notification toast for background delivery confirmation
   if (syncedCount > 0) {
     addNotification({
-      type: 'sync_complete',
+      type: 'offline_sync',
       title: 'Store & Forward Delivery Confirmed',
       message: `Silently settled ${syncedCount} queued store-and-forward transaction(s) with core settlement ledger.`
     });
   }
 
+  window.dispatchEvent(new Event('meshpay_transactions_updated'));
+  window.dispatchEvent(new Event('meshpay_profile_updated'));
+
   if (onProgress) onProgress(`Store & Forward: ${syncedCount} packet(s) settled successfully!`, 100);
-  await new Promise(r => setTimeout(r, 300));
+  await new Promise(r => setTimeout(r, 200));
 
   return { syncedCount, errors: [] };
 }
