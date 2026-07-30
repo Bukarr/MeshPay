@@ -219,6 +219,15 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
     setShowBiometricModal(true);
   };
 
+  const resetFormState = () => {
+    setAccountNumber('');
+    setBeneficiaryName('');
+    setWalletAddress('');
+    setNotes('');
+    setMeshNote('');
+    setStep(1);
+  };
+
   const handleBankAuthSuccess = () => {
     setShowBiometricModal(false);
 
@@ -249,6 +258,7 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
           isCrossBorder: targetCurrencyCode !== 'NGN'
         });
 
+        resetFormState();
         onTransactionComplete(transaction);
         return;
       } catch (err: any) {
@@ -290,6 +300,7 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
       amountDisplay: formatCurrencyAmount(inputAmount, sourceCurrencyCode)
     });
 
+    resetFormState();
     onTransactionComplete(newTx);
   };
 
@@ -308,6 +319,7 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
         amountDisplay: `₦${meshAmount.toLocaleString()}`
       });
 
+      resetFormState();
       onTransactionComplete(tx);
       setSelectedPeer(null);
     } catch (err: any) {

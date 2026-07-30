@@ -154,7 +154,7 @@ export const QuickSendModal: React.FC<QuickSendModalProps> = ({
       });
 
       setIsProcessing(false);
-      setSuccessTx(tx);
+      onClose();
       onTransactionComplete(tx);
     }, 800);
   };

@@ -294,7 +294,7 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
         amountDisplay: `₦${sendAmount.toLocaleString()}`
       });
 
-      setPaymentSuccess(true);
+      onClose();
       if (onTransactionComplete) onTransactionComplete(tx);
     } catch (err: any) {
       alert(err.message || 'Offline payment failed.');
