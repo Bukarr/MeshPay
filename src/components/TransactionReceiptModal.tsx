@@ -80,13 +80,25 @@ export const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = (
 
   if (!transaction) return null;
 
-  const isUsdToNgn = transaction.type === 'usd_to_ngn';
-  const isReceived = transaction.type === 'nearby_receive' || transaction.type === 'top_up';
+  const isReceived = transaction.type === 'nearby_receive' || 
+                     transaction.type === 'top_up' || 
+                     transaction.type === 'remittance_receive' ||
+                     (transaction.notes || '').toLowerCase().includes('received');
+  
+  const isUsdToNgn = transaction.type === 'usd_to_ngn' || (transaction.sourceCurrency === 'USD' && transaction.targetCurrency === 'NGN');
 
   const formatCurrency = (val: number, cur: string) => {
     if (cur === 'USD') return `$${val.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
     return `₦${val.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
   };
+
+  const displayCurrency = isReceived 
+    ? (transaction.targetCurrency || transaction.sourceCurrency || 'NGN') 
+    : (transaction.sourceCurrency || 'NGN');
+  
+  const displayAmount = isReceived 
+    ? (transaction.targetAmount !== undefined ? transaction.targetAmount : transaction.sourceAmount)
+    : transaction.sourceAmount;
 
   const minutes = Math.floor(secondsRemaining / 60);
   const seconds = secondsRemaining % 60;
@@ -156,16 +168,16 @@ export const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = (
               ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
               : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
           }`}>
-            <span>{isReceived ? 'Credit Received' : 'Debit Sent'}</span>
+            <span>{isReceived ? '📥 INCOMING CREDIT RECEIVED' : '📤 OUTGOING DEBIT SENT'}</span>
             <span>•</span>
             <span>{transaction.status === 'completed' ? 'Settled' : 'Queued'}</span>
           </div>
 
-          <h2 className={`text-2xl font-black tracking-tight ${isReceived ? 'text-emerald-400' : 'text-white'}`}>
-            {isReceived ? '+' : '-'}{formatCurrency(transaction.targetAmount, transaction.targetCurrency)}
+          <h2 className={`text-2xl font-black tracking-tight font-mono ${isReceived ? 'text-emerald-400' : 'text-white'}`}>
+            {isReceived ? '+' : '-'}{formatCurrency(displayAmount, displayCurrency)}
           </h2>
 
-          <p className="text-[11px] text-slate-400 mt-0.5">
+          <p className="text-[11px] text-slate-400 mt-0.5 font-medium">
             {isReceived 
               ? (transaction.type === 'top_up' ? 'Account Deposit / Top-up' : 'Incoming P2P Mesh Credit')
               : (isUsdToNgn ? 'USD to NGN Remittance Swap' : 'Outgoing P2P Transfer')}
@@ -176,18 +188,18 @@ export const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = (
         <div className="p-4 space-y-3 text-xs overflow-y-auto flex-1">
           <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
             <div className="flex items-center justify-between text-slate-400">
-              <span>{isReceived ? 'Sender / Payer' : 'Recipient Name'}</span>
-              <span className="font-semibold text-slate-100">{transaction.recipientName}</span>
+              <span className="font-bold text-slate-300">{isReceived ? 'Sender Contact' : 'Recipient Contact'}</span>
+              <span className="font-extrabold text-white text-sm">{transaction.recipientName}</span>
             </div>
 
             <div className="flex items-center justify-between text-slate-400">
-              <span>{isReceived ? 'Source Detail' : 'Destination Detail'}</span>
-              <span className="font-mono text-slate-200">{transaction.recipientDetail}</span>
+              <span>{isReceived ? 'Sender Tag / Account' : 'Recipient Tag / Account'}</span>
+              <span className="font-mono text-emerald-300 font-bold">{transaction.recipientDetail}</span>
             </div>
 
             {transaction.bankName && (
               <div className="flex items-center justify-between text-slate-400">
-                <span>{isReceived ? 'Sender Bank' : 'Beneficiary Bank'}</span>
+                <span>{isReceived ? 'Origin Bank Node' : 'Destination Bank Node'}</span>
                 <span className="font-medium text-slate-200 flex items-center gap-1">
                   <Building2 className="w-3.5 h-3.5 text-indigo-400" />
                   {transaction.bankName}
@@ -196,22 +208,22 @@ export const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = (
             )}
 
             <div className="border-t border-slate-800 my-1 pt-2 flex items-center justify-between text-slate-400">
-              <span>{isReceived ? 'Credited Amount' : 'Debited Amount'}</span>
-              <span className={`font-bold ${isReceived ? 'text-emerald-400' : 'text-slate-100'}`}>
-                {isReceived ? '+' : '-'}{formatCurrency(transaction.sourceAmount, transaction.sourceCurrency)}
+              <span>{isReceived ? 'Credited Net Amount' : 'Debited Net Amount'}</span>
+              <span className={`font-bold font-mono ${isReceived ? 'text-emerald-400' : 'text-slate-100'}`}>
+                {isReceived ? '+' : '-'}{formatCurrency(displayAmount, displayCurrency)}
               </span>
             </div>
 
             {isUsdToNgn && (
               <div className="flex items-center justify-between text-slate-400">
-                <span>Applied Exchange Rate</span>
-                <span className="font-mono text-emerald-400">$1 = ₦{transaction.exchangeRate.toLocaleString()}</span>
+                <span>Applied Remittance Rate</span>
+                <span className="font-mono text-emerald-400">$1 USD = ₦{transaction.exchangeRate.toLocaleString()} NGN</span>
               </div>
             )}
 
             <div className="flex items-center justify-between text-slate-400">
-              <span>Transfer Fee</span>
-              <span className="font-semibold text-emerald-400">₦0.00 (Zero Fee)</span>
+              <span>Network Transfer Fee</span>
+              <span className="font-semibold text-emerald-400">Zero Fee (Mesh Network)</span>
             </div>
           </div>
 

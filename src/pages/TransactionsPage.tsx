@@ -127,7 +127,30 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({
           </div>
         ) : (
           filtered.map((tx) => {
-            const isReceived = tx.type === 'nearby_receive' || tx.type === 'top_up';
+            const isReceived = tx.type === 'nearby_receive' || tx.type === 'top_up' || tx.type === 'remittance_receive';
+            
+            let displayCurrency = 'NGN';
+            let displayAmount = 0;
+            let conversionSubtext: string | null = null;
+
+            if (isReceived) {
+              displayCurrency = tx.targetCurrency || tx.sourceCurrency || 'NGN';
+              displayAmount = tx.targetAmount !== undefined ? tx.targetAmount : tx.sourceAmount;
+              if (tx.sourceCurrency === 'USD' && displayCurrency === 'NGN') {
+                conversionSubtext = `From $${tx.sourceAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`;
+              }
+            } else {
+              displayCurrency = tx.sourceCurrency || 'NGN';
+              displayAmount = tx.sourceAmount;
+              if (tx.targetCurrency && tx.targetCurrency !== tx.sourceCurrency) {
+                const targetSym = tx.targetCurrency === 'USD' ? '$' : '₦';
+                conversionSubtext = `→ ${targetSym}${tx.targetAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+              }
+            }
+
+            const symbol = displayCurrency === 'USD' ? '$' : '₦';
+            const formattedAmount = displayAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
             return (
               <div
                 key={tx.id}
@@ -180,12 +203,12 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({
                   <div className={`font-black text-xs ${
                     isReceived ? 'text-emerald-600' : 'text-slate-900'
                   }`}>
-                    {isReceived ? '+' : '-'}{tx.type === 'usd_to_ngn' ? `$${tx.sourceAmount.toLocaleString()}` : `₦${tx.sourceAmount.toLocaleString()}`}
+                    {isReceived ? '+' : '-'}{symbol}{formattedAmount}
                   </div>
 
-                  {tx.type === 'usd_to_ngn' && (
+                  {conversionSubtext && (
                     <div className="text-[10px] text-emerald-600 font-mono font-bold">
-                      → ₦{tx.targetAmount.toLocaleString()}
+                      {conversionSubtext}
                     </div>
                   )}
 

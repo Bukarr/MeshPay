@@ -117,15 +117,20 @@ export const QuickSendModal: React.FC<QuickSendModalProps> = ({
     setIsProcessing(true);
 
     setTimeout(() => {
+      const isCrossBorder = currency === 'USD';
+      const exRate = 1525.50;
+      const calculatedTargetAmount = isCrossBorder ? Number((amount * exRate).toFixed(2)) : amount;
+      const calculatedTargetCurrency = isCrossBorder ? 'NGN' : 'NGN';
+
       // Create outgoing transaction for sender
       const tx: Transaction = {
         id: 'tx_qs_' + Date.now(),
-        type: currency === 'USD' ? 'usd_to_ngn' : 'nearby_send',
+        type: isCrossBorder ? 'usd_to_ngn' : 'nearby_send',
         sourceAmount: amount,
         sourceCurrency: currency,
-        targetAmount: amount,
-        targetCurrency: currency,
-        exchangeRate: 1.0,
+        targetAmount: calculatedTargetAmount,
+        targetCurrency: calculatedTargetCurrency,
+        exchangeRate: isCrossBorder ? exRate : 1.0,
         fee: 0,
         recipientName: selectedContact.name,
         recipientDetail: `${selectedContact.tag} (${selectedContact.bank})`,

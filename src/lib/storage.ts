@@ -13,10 +13,10 @@ const KEYS = {
 };
 
 export const INITIAL_BASE_BALANCES: Record<string, { usd: number; ngn: number }> = {
-  '08012345678': { usd: 2850.00, ngn: 1420000.00 }, // Adewale Lawson
-  '08098765432': { usd: 1200.00, ngn: 380000.00 },  // Fatima Bello
-  '07011223344': { usd: 450.00,  ngn: 120000.00 },  // Chinedu Okeke
-  'default':     { usd: 500.00,  ngn: 250000.00 }
+  '08098765432': { usd: 0.00, ngn: 0.00 }, // Fatima Bello (US Diaspora - USD Account derived strictly from ledger)
+  '08012345678': { usd: 0.00, ngn: 0.00 }, // Adewale Lawson (Nigerian Local - NGN Account derived strictly from ledger)
+  '07011223344': { usd: 0.00, ngn: 0.00 }, // Chinedu Okeke (Multi-Currency Merchant derived strictly from ledger)
+  'default':     { usd: 0.00, ngn: 0.00 }
 };
 
 export function isUserLoggedIn(): boolean {
@@ -92,26 +92,31 @@ export function computeUserLedgerBalances(userPhone?: string): CalculatedBalance
 
     if (tx.type === 'nearby_receive' || tx.type === 'top_up') {
       // Inbound Credit
-      if (tx.targetCurrency === 'USD' || tx.sourceCurrency === 'USD') {
-        const amt = tx.targetAmount || tx.sourceAmount;
+      // Target currency is what recipient receives in their balance
+      const credCurrency = tx.targetCurrency || tx.sourceCurrency || 'NGN';
+      const amt = tx.targetAmount !== undefined ? tx.targetAmount : tx.sourceAmount;
+      if (credCurrency === 'USD') {
         totalUsd += amt;
       } else {
-        const amt = tx.targetAmount || tx.sourceAmount;
         totalNgn += amt;
       }
     } else {
       // Outbound Debit or Self FX Conversion
+      const isSelfSwap = (tx.recipientName || '').toLowerCase().includes('self') ||
+                         (tx.recipientDetail || '').toLowerCase().includes('own wallet') ||
+                         tx.type === 'usd_to_ngn' && (tx.accountNumber || '').includes('4092');
+
       if (tx.sourceCurrency === 'USD') {
         totalUsd -= tx.sourceAmount;
         if (isPending) pendingOutboundUsd += tx.sourceAmount;
-        if (tx.type === 'usd_to_ngn') {
-          totalNgn += tx.targetAmount;
+        if (isSelfSwap && tx.targetCurrency === 'NGN') {
+          totalNgn += (tx.targetAmount || 0);
         }
       } else if (tx.sourceCurrency === 'NGN') {
         totalNgn -= tx.sourceAmount;
         if (isPending) pendingOutboundNgn += tx.sourceAmount;
-        if (tx.type === 'ngn_to_usd') {
-          totalUsd += tx.targetAmount;
+        if (isSelfSwap && tx.targetCurrency === 'USD') {
+          totalUsd += (tx.targetAmount || 0);
         }
       }
     }
@@ -180,13 +185,131 @@ export function saveUserProfile(profile: UserProfile): void {
   window.dispatchEvent(new Event('meshpay_profile_updated'));
 }
 
+function getInitialTransactionsForUser(phoneKey: string): Transaction[] {
+  // Fatima Bello (US Diaspora $USD Account: 08098765432)
+  if (phoneKey === '08098765432') {
+    return [
+      {
+        id: 'tx_seed_fatima_01',
+        type: 'top_up',
+        sourceAmount: 3000.00,
+        sourceCurrency: 'USD',
+        targetAmount: 3000.00,
+        targetCurrency: 'USD',
+        exchangeRate: 1.0,
+        fee: 0,
+        recipientName: 'Chase Bank US Vault Deposit',
+        recipientDetail: 'USD Wire Deposit (Chase #8492)',
+        timestamp: new Date(Date.now() - 3600000 * 48).toISOString(),
+        status: 'completed',
+        isOffline: false,
+        notes: 'Initial USD Vault Deposit via Chase Bank'
+      },
+      {
+        id: 'tx_seed_fatima_02',
+        type: 'usd_to_ngn',
+        sourceAmount: 150.00,
+        sourceCurrency: 'USD',
+        targetAmount: 228825.00,
+        targetCurrency: 'NGN',
+        exchangeRate: 1525.50,
+        fee: 0,
+        recipientName: 'Adewale Lawson',
+        recipientDetail: '$adewale_ngn (GTBank / MeshPay Vault)',
+        timestamp: new Date(Date.now() - 3600000 * 12).toISOString(),
+        status: 'completed',
+        isOffline: false,
+        notes: 'Cross-Border Remittance to Adewale Lawson ($150 USD → ₦228,825 NGN)'
+      }
+    ];
+  }
+
+  // Adewale Lawson (Nigerian Resident ₦NGN Account: 08012345678)
+  if (phoneKey === '08012345678') {
+    return [
+      {
+        id: 'tx_seed_adewale_01',
+        type: 'top_up',
+        sourceAmount: 1191175.00,
+        sourceCurrency: 'NGN',
+        targetAmount: 1191175.00,
+        targetCurrency: 'NGN',
+        exchangeRate: 1.0,
+        fee: 0,
+        recipientName: 'GTBank Interbank Deposit',
+        recipientDetail: 'NGN Account Virtual Deposit',
+        timestamp: new Date(Date.now() - 3600000 * 72).toISOString(),
+        status: 'completed',
+        isOffline: false,
+        notes: 'Opening NGN Vault Deposit via GTBank'
+      },
+      {
+        id: 'tx_seed_fatima_02', // Same ID for multi-ledger matching!
+        type: 'nearby_receive',
+        sourceAmount: 150.00,
+        sourceCurrency: 'USD',
+        targetAmount: 228825.00,
+        targetCurrency: 'NGN',
+        exchangeRate: 1525.50,
+        fee: 0,
+        recipientName: 'Fatima Bello',
+        recipientDetail: '$fatima_us (US Diaspora Vault)',
+        timestamp: new Date(Date.now() - 3600000 * 12).toISOString(),
+        status: 'completed',
+        isOffline: false,
+        notes: 'Received ₦228,825 NGN from Fatima Bello ($150 USD Cross-Border Remittance)'
+      }
+    ];
+  }
+
+  // Chinedu Okeke (Multi-Currency Merchant: 07011223344)
+  if (phoneKey === '07011223344') {
+    return [
+      {
+        id: 'tx_seed_chinedu_01',
+        type: 'top_up',
+        sourceAmount: 120000.00,
+        sourceCurrency: 'NGN',
+        targetAmount: 120000.00,
+        targetCurrency: 'NGN',
+        exchangeRate: 1.0,
+        fee: 0,
+        recipientName: 'Zenith Bank Transfer',
+        recipientDetail: 'Merchant Opening Deposit',
+        timestamp: new Date(Date.now() - 3600000 * 96).toISOString(),
+        status: 'completed',
+        isOffline: false,
+        notes: 'Zenith Bank Opening Merchant Balance'
+      },
+      {
+        id: 'tx_seed_chinedu_02',
+        type: 'top_up',
+        sourceAmount: 450.00,
+        sourceCurrency: 'USD',
+        targetAmount: 450.00,
+        targetCurrency: 'USD',
+        exchangeRate: 1.0,
+        fee: 0,
+        recipientName: 'Stripe Merchant Wire',
+        recipientDetail: 'USD Business Vault Deposit',
+        timestamp: new Date(Date.now() - 3600000 * 80).toISOString(),
+        status: 'completed',
+        isOffline: false,
+        notes: 'Stripe Global Wire Deposit'
+      }
+    ];
+  }
+
+  return [];
+}
+
 export function getStoredTransactions(userPhone?: string): Transaction[] {
   const phoneKey = getUserKeyPrefix(userPhone);
   const key = `meshpay_txs_${phoneKey}`;
   const stored = secureVaultGet<Transaction[] | null>(key, null);
   if (stored) return stored;
 
-  const seeded: Transaction[] = [];
+  const seeded = getInitialTransactionsForUser(phoneKey);
   secureVaultSet(key, seeded);
   return seeded;
 }
@@ -251,20 +374,24 @@ export function addTransaction(tx: Transaction, userPhone?: string): void {
 
     if (recipient && getUserKeyPrefix(recipient.phone) !== senderPhoneKey) {
       const recipientPhoneKey = getUserKeyPrefix(recipient.phone);
-      const amount = tx.targetAmount || tx.sourceAmount;
-      const curr = tx.targetCurrency || tx.sourceCurrency || 'NGN';
+      
+      // Determine what currency the recipient's primary account receives.
+      // If tx.targetCurrency is specified (e.g. NGN for crossborder), recipient receives targetAmount in NGN.
+      // If sender sent USD directly and recipient has USD account or no conversion specified, recipient gets USD.
+      const recvTargetCurrency = tx.targetCurrency || tx.sourceCurrency || 'NGN';
+      const recvTargetAmount = tx.targetAmount !== undefined ? tx.targetAmount : tx.sourceAmount;
 
       const creditTx: Transaction = {
         id: tx.id, // SAME ID & NONCE for idempotent multi-node reconciliation!
         type: 'nearby_receive',
-        sourceAmount: amount,
-        sourceCurrency: curr,
-        targetAmount: amount,
-        targetCurrency: curr,
+        sourceAmount: tx.sourceAmount,
+        sourceCurrency: tx.sourceCurrency,
+        targetAmount: recvTargetAmount,
+        targetCurrency: recvTargetCurrency,
         exchangeRate: tx.exchangeRate || 1.0,
         fee: 0,
         recipientName: senderProfile.name,
-        recipientDetail: `${senderProfile.tag} (MeshPay Account)`,
+        recipientDetail: `${senderProfile.tag} (${senderProfile.bankName || 'MeshPay Account'})`,
         timestamp: tx.timestamp || new Date().toISOString(),
         status: tx.status, // Same pending or completed status
         isOffline: tx.isOffline,
@@ -272,7 +399,7 @@ export function addTransaction(tx: Transaction, userPhone?: string): void {
         offlineNonce: tx.offlineNonce,
         bankName: senderProfile.bankName,
         accountNumber: senderProfile.virtualAccountNgn,
-        notes: `Received from ${senderProfile.name} (${senderProfile.tag}) via BLE Mesh (${tx.isOffline ? 'Queued Store & Forward' : 'Settled'})`
+        notes: `Received ${tx.sourceCurrency === 'USD' ? '$' + tx.sourceAmount.toLocaleString() : '₦' + tx.sourceAmount.toLocaleString()} from ${senderProfile.name} (${senderProfile.tag}) via BLE Mesh (${tx.isOffline ? 'Queued Store & Forward' : 'Settled'})`
       };
 
       const recipientTxs = getStoredTransactions(recipientPhoneKey);
@@ -280,10 +407,10 @@ export function addTransaction(tx: Transaction, userPhone?: string): void {
       saveTransactions([creditTx, ...filteredRecipientTxs], recipientPhoneKey);
 
       // Notification for recipient
-      const amountStr = curr === 'USD' ? `$${amount.toLocaleString()}` : `₦${amount.toLocaleString()}`;
+      const creditAmtStr = recvTargetCurrency === 'USD' ? `$${recvTargetAmount.toLocaleString()}` : `₦${recvTargetAmount.toLocaleString()}`;
       addNotification({
         title: 'BLE Mesh Payment Received',
-        message: `Received ${amountStr} from ${senderProfile.name} (${senderProfile.tag}). ${tx.status === 'queued_offline' ? 'Pending backend sync.' : 'Settled.'}`,
+        message: `Received ${creditAmtStr} from ${senderProfile.name} (${senderProfile.tag}). ${tx.status === 'queued_offline' ? 'Pending backend sync.' : 'Settled.'}`,
         type: 'transaction'
       }, recipientPhoneKey);
     }

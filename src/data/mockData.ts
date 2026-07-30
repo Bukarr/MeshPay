@@ -2,16 +2,16 @@ import { UserProfile, NigerianBank, NearbyPeer, Transaction, ExchangeRate, FxHis
 import { generateSvgAvatar } from '../lib/avatarHelper';
 
 export const INITIAL_USER_PROFILE: UserProfile = {
-  name: 'Adewale Lawson',
+  name: 'Adewale Lawson (Naira Account)',
   email: 'adewale.lawson@meshpay.io',
   phone: '08012345678',
-  tag: '$adewale_l',
+  tag: '$adewale_ngn',
   avatar: generateSvgAvatar('Adewale Lawson', '#4F46E5', '#FFFFFF'),
-  usdBalance: 2850.00,
+  usdBalance: 0.00,
   ngnBalance: 1420000.00,
   virtualAccountNgn: '9021849201',
   virtualAccountUsd: '409218294012',
-  bankName: 'MeshPay Account',
+  bankName: 'MeshPay Account (GTBank Node)',
   tier: 'Tier 3 (Verified)',
   pin: '1234',
   biometricEnabled: true,
@@ -20,16 +20,16 @@ export const INITIAL_USER_PROFILE: UserProfile = {
 };
 
 export const SECOND_USER_PROFILE: UserProfile = {
-  name: 'Fatima Bello',
+  name: 'Fatima Bello (US Diaspora)',
   email: 'fatima.bello@meshpay.io',
   phone: '08098765432',
-  tag: '$fatima_b',
+  tag: '$fatima_us',
   avatar: generateSvgAvatar('Fatima Bello', '#059669', '#FFFFFF'),
-  usdBalance: 1200.00,
-  ngnBalance: 380000.00,
+  usdBalance: 2850.00,
+  ngnBalance: 0.00,
   virtualAccountNgn: '8092318492',
   virtualAccountUsd: '409218298811',
-  bankName: 'GTBank / MeshPay Vault',
+  bankName: 'US Stablecoin / MeshPay USD Vault',
   tier: 'Tier 3 (Verified)',
   pin: '5678',
   biometricEnabled: true,
@@ -38,10 +38,10 @@ export const SECOND_USER_PROFILE: UserProfile = {
 };
 
 export const THIRD_USER_PROFILE: UserProfile = {
-  name: 'Chinedu Okeke',
+  name: 'Chinedu Okeke (Multi-Currency)',
   email: 'chinedu.okeke@meshpay.io',
   phone: '07011223344',
-  tag: '$chinedu_tech',
+  tag: '$chinedu_biz',
   avatar: generateSvgAvatar('Chinedu Okeke', '#D97706', '#FFFFFF'),
   usdBalance: 450.00,
   ngnBalance: 120000.00,
@@ -57,25 +57,25 @@ export const THIRD_USER_PROFILE: UserProfile = {
 
 export const PRESET_ACCOUNTS = [
   {
-    profile: INITIAL_USER_PROFILE,
-    userId: 'user_1' as const,
-    password: 'password123',
-    roleLabel: 'Primary User (Account 1)',
-    balanceText: '₦1,420,000 • $2,850'
-  },
-  {
     profile: SECOND_USER_PROFILE,
     userId: 'user_2' as const,
     password: 'fatima2026',
-    roleLabel: 'Secondary User (Account 2)',
-    balanceText: '₦380,000 • $1,200'
+    roleLabel: 'US Diaspora Sender ($USD Account)',
+    balanceText: '$2,850.00 USD'
+  },
+  {
+    profile: INITIAL_USER_PROFILE,
+    userId: 'user_1' as const,
+    password: 'password123',
+    roleLabel: 'Nigerian Resident Recipient (₦NGN Account)',
+    balanceText: '₦1,420,000.00 NGN'
   },
   {
     profile: THIRD_USER_PROFILE,
     userId: 'user_3' as const,
     password: 'chinedu2026',
-    roleLabel: 'Vendor / Tech Peer (Account 3)',
-    balanceText: '₦120,000 • $450'
+    roleLabel: 'Multi-Currency Merchant ($ & ₦)',
+    balanceText: '$450.00 USD • ₦120,000 NGN'
   }
 ];
 
