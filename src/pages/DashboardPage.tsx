@@ -203,7 +203,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-slate-900 text-white font-bold border border-emerald-500/30 hover:bg-slate-800 active:scale-95 transition-all"
           >
             <Camera className="w-4 h-4 text-emerald-400" />
-            <span className="text-xs">Scan & Pay</span>
+            <span className="text-xs">Scan to Receive</span>
           </button>
         </div>
 
@@ -212,8 +212,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             onClick={onOpenReceiveQr}
             className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-white border border-slate-200 text-slate-800 font-bold shadow-sm hover:bg-slate-50 active:scale-95 transition-all"
           >
-            <QrCode className="w-4.5 h-4.5 mb-1 text-emerald-600" />
-            <span className="text-[10px] leading-tight font-extrabold">Receive QR</span>
+            <QrCode className="w-4.5 h-4.5 mb-1 text-indigo-600" />
+            <span className="text-[10px] leading-tight font-extrabold">Show Pay QR</span>
           </button>
 
           <button

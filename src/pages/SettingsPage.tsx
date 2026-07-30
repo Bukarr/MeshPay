@@ -16,9 +16,11 @@ import {
   ChevronDown,
   ChevronUp,
   Smartphone,
-  Download
+  Download,
+  Fingerprint,
+  BookOpen
 } from 'lucide-react';
-import { resetDemoState, setUserLoggedIn, verifyVaultIntegrity } from '../lib/storage';
+import { resetDemoState, setUserLoggedIn, verifyVaultIntegrity, getSecurityConfig, saveSecurityConfig, SecurityConfig } from '../lib/storage';
 import { runDeviceIntegrityScanner } from '../lib/secureVault';
 import { getStoreAndForwardQueue, silentSyncStoreAndForwardQueue } from '../lib/storeAndForward';
 import { isPwaInstallable, promptPwaInstall } from '../lib/backgroundSync';
@@ -37,6 +39,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ user, isOnline, onCl
   const [tamperTestMessage, setTamperTestMessage] = useState<string | null>(null);
   const [isSyncingSf, setIsSyncingSf] = useState<boolean>(false);
   const [showLogoutConfirmModal, setShowLogoutConfirmModal] = useState<boolean>(false);
+  const [securityConfig, setSecurityConfig] = useState<SecurityConfig>(() => getSecurityConfig());
+
+  const handleToggleSecurity = (key: keyof SecurityConfig) => {
+    const updated = { ...securityConfig, [key]: !securityConfig[key] };
+    setSecurityConfig(updated);
+    saveSecurityConfig(updated);
+  };
 
   const handleReset = () => {
     if (confirm('Reset MeshPay wallet state to initial balance?')) {
@@ -187,6 +196,130 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ user, isOnline, onCl
             <code className="text-[10px] text-slate-700 bg-white border border-slate-200 p-2 rounded-xl block font-mono break-all">
               {user.publicKey}
             </code>
+          </div>
+        </div>
+      </div>
+
+      {/* Security sub-menu for Biometric Authentication Controls */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-3 text-xs">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+          <div className="flex items-center gap-2">
+            <Fingerprint className="w-4 h-4 text-indigo-600 animate-pulse" />
+            <h3 className="font-extrabold text-xs text-slate-900">Security Safeguards (Sub-Menu)</h3>
+          </div>
+          <span className="text-[9px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full font-black">
+            ACTIVE
+          </span>
+        </div>
+
+        <div className="space-y-3.5">
+          <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+            Configure simulated biometric signature requirements (Face Liveness / Thumbprint) for specific wallet operations.
+          </p>
+
+          <div className="space-y-3">
+            {/* Toggle 1: High Value Transfers */}
+            <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+              <div className="space-y-0.5 max-w-[70%]">
+                <span className="font-bold text-slate-800 text-[11px] block">High-Value Payouts</span>
+                <span className="text-[10px] text-slate-500 block leading-tight">
+                  Require 3D face mapping or thumbprint verification for any single payout exceeding ₦50,000 NGN or equivalent.
+                </span>
+              </div>
+              <button
+                onClick={() => handleToggleSecurity('highValueTransfers')}
+                className={`relative inline-flex h-5.5 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  securityConfig.highValueTransfers ? 'bg-indigo-600' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    securityConfig.highValueTransfers ? 'translate-x-5.5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Toggle 2: Sync Access */}
+            <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+              <div className="space-y-0.5 max-w-[70%]">
+                <span className="font-bold text-slate-800 text-[11px] block">Manual Queue Sync Access</span>
+                <span className="text-[10px] text-slate-500 block leading-tight">
+                  Verify owner biometric credentials (FIDO2) before transmitting local packets to central ledger.
+                </span>
+              </div>
+              <button
+                onClick={() => handleToggleSecurity('syncAccess')}
+                className={`relative inline-flex h-5.5 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  securityConfig.syncAccess ? 'bg-indigo-600' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    securityConfig.syncAccess ? 'translate-x-5.5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Offline P2P Transfer Guide & Checklist */}
+      <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white border border-indigo-950 rounded-3xl p-5 shadow-lg space-y-3.5 text-xs">
+        <div className="flex items-center justify-between border-b border-indigo-900/50 pb-2.5">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-indigo-400" />
+            <h3 className="font-extrabold text-xs text-indigo-100">Offline P2P Transfer Guide</h3>
+          </div>
+          <span className="text-[9px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full font-bold">
+            Tips & Checklist
+          </span>
+        </div>
+
+        <div className="space-y-3 text-slate-300">
+          <p className="text-[11px] text-slate-300 font-medium leading-relaxed">
+            MeshPay operates natively over local peer-to-peer radio meshes (Bluetooth, Wi-Fi Direct, and Ultrasound). Check these guidelines to ensure a flawless connection.
+          </p>
+
+          {/* Core Tips Grid */}
+          <div className="grid grid-cols-1 gap-2.5">
+            <div className="p-2.5 bg-slate-950/40 rounded-xl border border-indigo-900/30 space-y-1">
+              <span className="font-bold text-indigo-300 text-[10px] block uppercase tracking-wider">📡 Close Proximity</span>
+              <p className="text-[10px] text-slate-400 leading-normal">
+                Keep both devices within 10 meters. Physical obstructions (walls, metal panels) can degrade Bluetooth signal propagation.
+              </p>
+            </div>
+
+            <div className="p-2.5 bg-slate-950/40 rounded-xl border border-indigo-900/30 space-y-1">
+              <span className="font-bold text-indigo-300 text-[10px] block uppercase tracking-wider">🔒 Dynamic QR Security</span>
+              <p className="text-[10px] text-slate-400 leading-normal">
+                The QR codes rotate every 5 minutes. If a scan fails, click 'Generate New QR' to sync security nonces between local vaults.
+              </p>
+            </div>
+          </div>
+
+          {/* Interactive Checklist */}
+          <div className="pt-2 border-t border-indigo-900/40 space-y-2">
+            <span className="font-bold text-[10px] uppercase tracking-wider text-indigo-300 block">Pre-Offline Checklist</span>
+            
+            <div className="space-y-1.5">
+              {[
+                'Ensure Bluetooth and Wi-Fi are turned ON on both devices.',
+                'Verify both wallets are running active Service Worker shells.',
+                'Keep both devices close together (within 10-meter range).',
+                'Confirm target receiver has generated a fresh 5-minute QR payload.'
+              ].map((item, index) => (
+                <label key={index} className="flex items-start gap-2.5 text-[10.5px] text-slate-300 select-none cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    defaultChecked={index < 2} 
+                    className="mt-0.5 rounded border-indigo-900 bg-slate-950 text-indigo-600 focus:ring-indigo-500/20 w-3.5 h-3.5" 
+                  />
+                  <span>{item}</span>
+                </label>
+              ))}
+            </div>
           </div>
         </div>
       </div>

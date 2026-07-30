@@ -1,6 +1,6 @@
 import React from 'react';
 import { SendAndPayPage } from './SendAndPayPage';
-import { UserProfile, ExchangeRate, Transaction } from '../types';
+import { UserProfile, ExchangeRate, Transaction, RecentReceiver } from '../types';
 
 interface RemittancePageProps {
   user: UserProfile;
@@ -11,6 +11,7 @@ interface RemittancePageProps {
   onOpenReceiveQr?: () => void;
   onOpenSendQr?: () => void;
   triggerAutoSync?: () => void;
+  prefilledRecipient?: RecentReceiver | null;
 }
 
 export const RemittancePage: React.FC<RemittancePageProps> = (props) => {

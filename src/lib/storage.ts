@@ -14,8 +14,8 @@ const KEYS = {
 };
 
 export const INITIAL_BASE_BALANCES: Record<string, { usd: number; ngn: number }> = {
-  '08098765432': { usd: 2850.00, ngn: 0.00 }, // Fatima Bello (US Diaspora - USD Account)
-  '08012345678': { usd: 0.00, ngn: 1420000.00 }, // Adewale Lawson (Nigerian Local - NGN Account)
+  '08098765432': { usd: 2850.00, ngn: 0.00 }, // Fatima Bello ($USD Account)
+  '08012345678': { usd: 0.00, ngn: 1420000.00 }, // Adewale Lawson (₦NGN Account)
   '07011223344': { usd: 450.00, ngn: 120000.00 }, // Chinedu Okeke (Multi-Currency Merchant)
   'default':     { usd: 0.00, ngn: 0.00 }
 };
@@ -193,7 +193,7 @@ export function saveUserProfile(profile: UserProfile): void {
 }
 
 function getInitialTransactionsForUser(phoneKey: string): Transaction[] {
-  // Fatima Bello (US Diaspora $USD Account: 08098765432)
+  // Fatima Bello ($USD Account: 08098765432)
   if (phoneKey === '08098765432') {
     return [
       {
@@ -260,7 +260,7 @@ function getInitialTransactionsForUser(phoneKey: string): Transaction[] {
         exchangeRate: 1525.50,
         fee: 0,
         recipientName: 'Fatima Bello',
-        recipientDetail: '$fatima_us (US Diaspora Vault)',
+        recipientDetail: '$fatima_us (MeshPay USD Vault)',
         timestamp: new Date(Date.now() - 3600000 * 12).toISOString(),
         status: 'completed',
         isOffline: false,
@@ -656,7 +656,28 @@ export function resetDemoState(): void {
   secureVaultRemove(KEYS.USER_PROFILE);
   secureVaultSet(KEYS.LOGGED_IN, true);
   saveExchangeRate(INITIAL_EXCHANGE_RATE);
+  secureVaultSet('meshpay_security_config', {
+    highValueTransfers: true,
+    syncAccess: true
+  });
   window.dispatchEvent(new Event('meshpay_reset'));
+}
+
+export interface SecurityConfig {
+  highValueTransfers: boolean;
+  syncAccess: boolean;
+}
+
+export function getSecurityConfig(): SecurityConfig {
+  return secureVaultGet<SecurityConfig>('meshpay_security_config', {
+    highValueTransfers: true,
+    syncAccess: true
+  });
+}
+
+export function saveSecurityConfig(config: SecurityConfig): void {
+  secureVaultSet('meshpay_security_config', config);
+  window.dispatchEvent(new Event('meshpay_security_config_updated'));
 }
 
 export function generateOfflineSignature(): { signature: string; nonce: string } {

@@ -6,16 +6,13 @@ import {
   CheckCircle2, 
   ShieldCheck, 
   Upload, 
-  KeyRound, 
-  AlertTriangle,
   Lock,
-  Copy,
-  Check,
-  RefreshCw,
-  HelpCircle
+  AlertTriangle,
+  HelpCircle,
+  RefreshCw
 } from 'lucide-react';
 import { UserProfile, Transaction, RecentReceiver } from '../types';
-import { addTransaction, generateOfflineSignature, getRecentOfflineReceivers, saveRecentOfflineReceiver } from '../lib/storage';
+import { addTransaction, getRecentOfflineReceivers, saveRecentOfflineReceiver } from '../lib/storage';
 import { addNotification } from '../lib/notifications';
 import { INITIAL_NEARBY_PEERS } from '../data/mockData';
 import { 
@@ -43,7 +40,6 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
   const [isScanningCamera, setIsScanningCamera] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
-  const [copiedCode, setCopiedCode] = useState(false);
   const [showCryptoExplainer, setShowCryptoExplainer] = useState(false);
 
   // Dynamic 5-minute code state
@@ -61,7 +57,6 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
   } | null>(null);
 
   const [sendAmount, setSendAmount] = useState<number>(5000);
-  const [sendNote, setSendNote] = useState<string>('Offline Encrypted QR Payment');
   const [paymentSuccess, setPaymentSuccess] = useState<boolean>(false);
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
   const [lastCompletedTx, setLastCompletedTx] = useState<Transaction | null>(null);
@@ -130,12 +125,6 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
   const seconds = secondsRemaining % 60;
   const timerDisplay = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
-  const handleCopyCode = () => {
-    navigator.clipboard.writeText(cryptoCodeObj.code);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2000);
-  };
-
   const processRawQrString = (rawText: string) => {
     setScanError(null);
     const verification = decryptAndVerifyQrPayload(rawText);
@@ -152,7 +141,7 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
       name: txData.recipientName,
       tag: txData.recipientName,
       account: txData.recipientDetail,
-      bank: txData.bankName || 'Settlement Bank'
+      bank: txData.bankName || 'MeshPay Account'
     });
 
     stopCameraStream();
@@ -241,7 +230,8 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
   const handleSelectRecentReceiver = (receiver: RecentReceiver) => {
     stopCameraStream();
     setVerifiedTx({
-      id: 'tx_sim_rec_' + Date.now(),
+      version: 'MESHPAY_v2_ENC',
+      txId: 'tx_sim_rec_' + Date.now(),
       sourceAmount: 5000,
       sourceCurrency: 'NGN',
       targetAmount: 5000,
@@ -249,7 +239,10 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
       recipientName: receiver.name,
       recipientDetail: receiver.account,
       bankName: receiver.bank,
-      offlineNonce: 'NONCE_REC_' + receiver.id
+      offlineNonce: 'NONCE_REC_' + receiver.id,
+      timestamp: new Date().toISOString(),
+      expiresAt: Date.now() + 5 * 60 * 1000,
+      salt: 'sim'
     });
     setSendAmount(5000);
     setScannedRecipient({
@@ -269,53 +262,50 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
       targetAmount: 5000,
       targetCurrency: 'NGN',
       recipientName: peer.name,
-      recipientDetail: `${peer.accountNumber} (${peer.bankName})`,
-      bankName: peer.bankName,
+      recipientDetail: `${peer.accountNumber} (MeshPay Account)`,
+      bankName: 'MeshPay Account',
       offlineNonce: 'NONCE_PEER_' + peer.id
     });
 
     processRawQrString(simulatedQr);
   };
 
-  const handleInitiateSend = () => {
+  const handleInitiateReceive = () => {
     if (!scannedRecipient) return;
-    if (sendAmount <= 0) return alert('Please enter a valid amount');
-    if (sendAmount > user.ngnBalance) return alert('Insufficient NGN balance in offline vault');
-    if (isExpired) return alert('QR code session has expired. Please regenerate a 5-minute code.');
+    if (sendAmount <= 0) return alert('Invalid scan amount');
+    if (isExpired) return alert('Session expired. Please re-scan QR.');
 
     setShowAuthModal(true);
   };
 
   const handleAuthorizationSuccess = () => {
-    if (!scannedRecipient) return;
+    if (!scannedRecipient || !verifiedTx) return;
     setShowAuthModal(false);
 
     try {
-      const { signature, nonce } = generateOfflineSignature();
-
-      const tx: Transaction = {
-        id: 'tx_p2p_off_' + Date.now(),
-        type: 'nearby_send',
+      // Inbound Credit for Receiver
+      const rxTx: Transaction = {
+        id: 'tx_p2p_rx_' + Date.now(),
+        type: 'nearby_receive',
         sourceAmount: sendAmount,
         sourceCurrency: 'NGN',
         targetAmount: sendAmount,
         targetCurrency: 'NGN',
         exchangeRate: 1.0,
         fee: 0,
-        recipientName: scannedRecipient.name,
-        recipientDetail: `${scannedRecipient.tag} (${scannedRecipient.bank})`,
+        recipientName: user.name, // The receiver's name
+        recipientDetail: `${user.virtualAccountNgn || user.phone} (MeshPay)`,
         timestamp: new Date().toISOString(),
         status: 'queued_offline',
         isOffline: true,
-        offlineSignature: signature,
-        offlineNonce: nonce,
-        notes: `${sendNote} (Verified via Encrypted QR Scan & Biometric Signature)`
+        offlineNonce: verifiedTx.offlineNonce || 'NONCE_RX_' + Date.now(),
+        notes: `Received ₦${sendAmount.toLocaleString()} NGN from ${scannedRecipient.name} (Offline Scan Handshake Verified)`
       };
 
-      addTransaction(tx);
-      setLastCompletedTx(tx);
+      addTransaction(rxTx);
+      setLastCompletedTx(rxTx);
 
-      // Save to recent receivers list
+      // Save sender to recent list
       saveRecentOfflineReceiver({
         id: 'rec_' + Date.now(),
         name: scannedRecipient.name,
@@ -325,21 +315,18 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
         avatar: undefined
       }, user.phone);
 
-      // Refresh local recent list state
-      setRecentReceivers(getRecentOfflineReceivers(user.phone));
-
       addNotification({
         type: 'offline_queue',
-        title: 'Encrypted Offline Payment Executed',
-        message: `Sent ₦${sendAmount.toLocaleString()} NGN to ${scannedRecipient.name} via verified QR scan.`,
-        txId: tx.id,
-        amountDisplay: `₦${sendAmount.toLocaleString()}`
+        title: 'Offline Credit Received!',
+        message: `Instantly received ₦${sendAmount.toLocaleString()} NGN from ${scannedRecipient.name} via decrypted QR scan.`,
+        txId: rxTx.id,
+        amountDisplay: `+₦${sendAmount.toLocaleString()}`
       });
 
-      onClose();
-      if (onTransactionComplete) onTransactionComplete(tx);
+      setPaymentSuccess(true);
+      if (onTransactionComplete) onTransactionComplete(rxTx);
     } catch (err: any) {
-      alert(err.message || 'Offline payment failed.');
+      alert(err.message || 'Failed to complete offline receive.');
     }
   };
 
@@ -355,7 +342,7 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
               <Camera className="w-5 h-5 text-slate-950" />
             </div>
             <div>
-              <h3 className="font-extrabold text-sm text-white">Scan QR to Send Money</h3>
+              <h3 className="font-extrabold text-sm text-white">Scan QR to Receive Money</h3>
               <p className="text-[11px] text-slate-400">Offline Camera & Image Scanner</p>
             </div>
           </div>
@@ -374,10 +361,10 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
         <div className="p-5 space-y-4 overflow-y-auto flex-1">
           {paymentSuccess ? (
             <SuccessCelebration
-              title="P2P Payment Confirmed!"
-              message={`Successfully sent ₦${sendAmount.toLocaleString()} NGN to ${scannedRecipient?.name}. Signed with offline cryptographic signature.`}
-              amountDisplay={`₦${sendAmount.toLocaleString()} NGN`}
-              recipientName={scannedRecipient?.name}
+              title="Instant Credit Received!"
+              message={`Successfully processed scan! Received ₦${sendAmount.toLocaleString()} NGN from ${scannedRecipient?.name} into your local balance.`}
+              amountDisplay={`+₦${sendAmount.toLocaleString()} NGN`}
+              recipientName={user.name}
               txId={lastCompletedTx?.id}
               onDone={() => {
                 stopCameraStream();
@@ -399,7 +386,7 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
                 <div className="p-3 bg-amber-500/15 border border-amber-500/40 rounded-2xl text-amber-300 text-xs flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span>QR Code Expired (5-Min Limit Exceeded)</span>
+                    <span>Scan Session Expired</span>
                   </div>
                   <button
                     onClick={handleRegenerateCode}
@@ -436,18 +423,18 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
                 ) : verifiedTx ? (
                   <div className="text-center p-3 space-y-1">
                     <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto animate-bounce" />
-                    <div className="font-extrabold text-xs text-white">{verifiedTx.recipientName}</div>
+                    <div className="font-extrabold text-xs text-white">Sender: {scannedRecipient?.name}</div>
                     <div className="text-[10px] text-emerald-400 font-mono">
-                      {verifiedTx.recipientDetail}
+                      {scannedRecipient?.account}
                     </div>
                     <span className="inline-block text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-mono">
-                      ✓ Anti-Hijack Checksum Verified
+                      ✓ Anti-Tamper Checksum Verified
                     </span>
                   </div>
                 ) : (
                   <div className="text-center space-y-2 p-3">
                     <Camera className="w-8 h-8 text-emerald-400 mx-auto" />
-                    <p className="text-xs text-slate-300 font-medium">Scan Recipient QR Code via Camera or Upload Image</p>
+                    <p className="text-xs text-slate-300 font-medium">Scan Sender's Payment QR Code via Camera or Upload Image</p>
                     
                     <div className="flex gap-2 justify-center pt-1">
                       <button
@@ -490,44 +477,11 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
                 </div>
               )}
 
-              {/* Recent Receivers (Offline) */}
-              {!verifiedTx && recentReceivers.length > 0 && (
-                <div className="space-y-1.5 pt-1">
-                  <label className="text-[10px] font-extrabold text-indigo-300 uppercase tracking-wider block">
-                    Or Quick Transfer to Recent Receivers:
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {recentReceivers.map((receiver) => (
-                      <button
-                        key={receiver.id}
-                        onClick={() => handleSelectRecentReceiver(receiver)}
-                        disabled={isExpired}
-                        className={`p-2 bg-slate-950 border border-slate-800 rounded-xl text-left flex items-center gap-2 transition-all ${
-                          isExpired ? 'opacity-50 cursor-not-allowed' : 'hover:border-indigo-500'
-                        }`}
-                      >
-                        {receiver.avatar ? (
-                          <img src={receiver.avatar} alt={receiver.name} className="w-7 h-7 rounded-lg object-cover" />
-                        ) : (
-                          <div className="w-7 h-7 rounded-lg bg-indigo-950 text-indigo-400 flex items-center justify-center text-[10px] font-black border border-indigo-800 shrink-0">
-                            {receiver.name.split(' ').map(n => n[0]).join('')}
-                          </div>
-                        )}
-                        <div className="truncate">
-                          <div className="font-bold text-[11px] text-white truncate">{receiver.name}</div>
-                          <div className="text-[9px] text-slate-400 font-mono truncate">{receiver.tag}</div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* Simulated Peer QR Tokens */}
               {!verifiedTx && (
                 <div className="space-y-1.5 pt-1">
                   <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                    Or Select Nearby Peer QR Token:
+                    Or Simulate Scanning Discovered Peer's Send QR:
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     {INITIAL_NEARBY_PEERS.slice(0, 2).map((peer) => (
@@ -550,36 +504,37 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
                 </div>
               )}
 
-              {/* VERIFIED DETAILS & SEND FORM */}
+              {/* VERIFIED DETAILS & RECEIVE FORM */}
               {verifiedTx && scannedRecipient && (
                 <div className="p-3.5 bg-slate-950 rounded-2xl border border-emerald-500/40 space-y-3 animate-fadeIn">
                   <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
                     <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                     <div>
-                      <div className="font-extrabold text-xs text-white">Recipient: {scannedRecipient.name}</div>
+                      <div className="font-extrabold text-xs text-white">Sender: {scannedRecipient.name}</div>
                       <div className="text-[10px] text-slate-400 font-mono">{scannedRecipient.account}</div>
                     </div>
                   </div>
 
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs text-slate-400 font-bold">
-                      <span>Amount to Transfer (NGN)</span>
-                      <span>Vault: ₦{user.ngnBalance.toLocaleString()}</span>
+                      <span>Amount Locked in QR (NGN)</span>
+                      <span className="text-amber-400 text-[10px] bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded font-bold">
+                        🔒 FIXED (NON-ALTERABLE)
+                      </span>
                     </div>
-                    <input
-                      type="number"
-                      value={sendAmount || ''}
-                      onChange={(e) => setSendAmount(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-lg font-black text-emerald-400 focus:outline-none"
-                    />
+                    {/* Read-only / disabled display to prevent altering amount */}
+                    <div className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-lg font-black text-emerald-400 tracking-wide flex items-center justify-between shadow-inner">
+                      <span>₦{sendAmount.toLocaleString()}</span>
+                      <span className="text-xs text-slate-500 uppercase tracking-wider font-extrabold">NGN</span>
+                    </div>
                   </div>
 
                   <button
-                    onClick={handleInitiateSend}
-                    className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs shadow-lg shadow-emerald-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                    onClick={handleInitiateReceive}
+                    className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
                   >
                     <Lock className="w-4 h-4" />
-                    <span>Authorize & Confirm ₦{sendAmount.toLocaleString()} Transfer</span>
+                    <span>Authorize & Accept ₦{sendAmount.toLocaleString()} Credit Instantly</span>
                   </button>
                 </div>
               )}
@@ -589,7 +544,7 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
                 <div className="flex items-center justify-between text-[11px] text-indigo-300 font-extrabold">
                   <span className="flex items-center gap-1.5">
                     <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                    <span>5-Min Security Session</span>
+                    <span>Acoustic & Optical Decryption</span>
                   </span>
                   <span className={`text-[10px] font-mono font-extrabold px-2 py-0.5 rounded-full border ${
                     isExpired ? 'bg-red-500/20 text-red-300 border-red-500/40' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
@@ -616,16 +571,16 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
                 {showCryptoExplainer && (
                   <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-2 text-[10px] text-slate-300 leading-relaxed animate-fadeIn">
                     <div>
-                      <span className="font-bold text-amber-300">1. Dynamic QR (Anti-Replay):</span>
-                      <p className="text-slate-400">Rotates every 5 minutes so captured QR images cannot be re-used.</p>
+                      <span className="font-bold text-amber-300">1. Fixed Transaction Amounts:</span>
+                      <p className="text-slate-400">Receiver's app reads the exact amount compiled into the sender's signature. It cannot be altered during scanning.</p>
                     </div>
                     <div>
-                      <span className="font-bold text-amber-300">2. Single-Use Nonce:</span>
-                      <p className="text-slate-400">A cryptographic random string guaranteeing no double-spending.</p>
+                      <span className="font-bold text-amber-300">2. Instant Local Settlement:</span>
+                      <p className="text-slate-400">Balances update instantly on your local secure vault without requiring cellular network connections.</p>
                     </div>
                     <div>
-                      <span className="font-bold text-amber-300">3. HMAC Integrity:</span>
-                      <p className="text-slate-400">Ensures transfer amounts cannot be altered in transit.</p>
+                      <span className="font-bold text-amber-300">3. HMAC Integrity Check:</span>
+                      <p className="text-slate-400">Ensures no transaction hijacking or spoofing can modify details on transit.</p>
                     </div>
                   </div>
                 )}
@@ -654,7 +609,7 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
         onClose={() => setShowAuthModal(false)}
         onSuccess={handleAuthorizationSuccess}
         amountDisplay={`₦${sendAmount.toLocaleString()} NGN`}
-        recipientDisplay={`${scannedRecipient?.name || ''} (${scannedRecipient?.bank || ''})`}
+        recipientDisplay={`${scannedRecipient?.name || ''}`}
       />
     </div>
   );

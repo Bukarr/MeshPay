@@ -29,7 +29,7 @@ import {
   Clipboard,
   Check
 } from 'lucide-react';
-import { UserProfile, ExchangeRate, NigerianBank, Transaction, NearbyPeer } from '../types';
+import { UserProfile, ExchangeRate, NigerianBank, Transaction, NearbyPeer, RecentReceiver } from '../types';
 import { NIGERIAN_BANKS, INITIAL_USER_PROFILE, SECOND_USER_PROFILE, THIRD_USER_PROFILE } from '../data/mockData';
 import { WORLD_CURRENCIES, WorldCurrency, getCurrency, convertCurrency, formatCurrencyAmount } from '../lib/currencies';
 import { BiometricModal } from '../components/BiometricModal';
@@ -37,7 +37,7 @@ import { SecurityModal } from '../components/SecurityModal';
 import { OfflineReceiveQrModal } from '../components/OfflineReceiveQrModal';
 import { OfflineSendQrModal } from '../components/OfflineSendQrModal';
 import { useNearbyScan } from '../hooks/useNearbyScan';
-import { addTransaction, generateOfflineSignature, getOfflineQueuedTransactions, isUsdAccount } from '../lib/storage';
+import { addTransaction, generateOfflineSignature, getOfflineQueuedTransactions, isUsdAccount, getSecurityConfig } from '../lib/storage';
 import { enqueueStoreAndForward } from '../lib/storeAndForward';
 import { addNotification } from '../lib/notifications';
 
@@ -51,6 +51,7 @@ interface SendAndPayPageProps {
   onOpenSendQr?: () => void;
   triggerAutoSync?: () => void;
   initialMode?: 'bank' | 'mesh';
+  prefilledRecipient?: RecentReceiver | null;
 }
 
 export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
@@ -62,7 +63,8 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
   onOpenReceiveQr,
   onOpenSendQr,
   triggerAutoSync,
-  initialMode = 'bank'
+  initialMode = 'bank',
+  prefilledRecipient = null
 }) => {
   // Top Level Mode: Bank & Multi-Currency vs Bluetooth Mesh & Offline P2P
   const [activeMode, setActiveMode] = useState<'bank' | 'mesh'>(initialMode);
@@ -79,6 +81,31 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
   const [selectedBank, setSelectedBank] = useState<NigerianBank>(NIGERIAN_BANKS[0]);
   const [accountNumber, setAccountNumber] = useState<string>('');
   const [beneficiaryName, setBeneficiaryName] = useState<string>('');
+
+  React.useEffect(() => {
+    if (prefilledRecipient) {
+      setAccountNumber(prefilledRecipient.account);
+      setBeneficiaryName(prefilledRecipient.name);
+      
+      const foundBank = NIGERIAN_BANKS.find(b => 
+        b.name.toLowerCase().includes(prefilledRecipient.bank.toLowerCase()) || 
+        prefilledRecipient.bank.toLowerCase().includes(b.name.toLowerCase())
+      );
+      if (foundBank) {
+        setSelectedBank(foundBank);
+      }
+      
+      // Determine transfer direction based on account type / bank name
+      if (prefilledRecipient.bank.toLowerCase().includes('usd')) {
+        setTransferDirection('fx_to_ngn');
+      } else {
+        setTransferDirection('ngn_to_ngn');
+      }
+      
+      setActiveMode('bank');
+      setStep(1);
+    }
+  }, [prefilledRecipient]);
   const [isVerifyingAccount, setIsVerifyingAccount] = useState<boolean>(false);
   const [notes, setNotes] = useState<string>('');
 
@@ -265,7 +292,14 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
       return alert(`Insufficient USD balance. Maximum available: $${user.usdBalance.toLocaleString('en-US')}`);
     }
 
-    setShowBiometricModal(true);
+    const isHighValue = (sourceCurrencyCode === 'NGN' && inputAmount > 50000) || (sourceCurrencyCode === 'USD' && inputAmount > 50);
+    const securityConfig = getSecurityConfig();
+
+    if (securityConfig.highValueTransfers && isHighValue) {
+      setShowBiometricModal(true);
+    } else {
+      handleBankAuthSuccess();
+    }
   };
 
   const resetFormState = () => {
@@ -914,12 +948,12 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
                   }}
                   className="p-3.5 rounded-3xl bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-md shadow-sm flex items-center gap-3 transition-all text-left active:scale-95 cursor-pointer"
                 >
-                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100">
                     <QrCode className="w-5 h-5" />
                   </div>
                   <div>
                     <span className="font-black text-xs text-slate-900 block">Show QR</span>
-                    <span className="text-[10px] text-slate-500 font-medium">Receive Offline</span>
+                    <span className="text-[10px] text-slate-500 font-medium">Send Offline</span>
                   </div>
                 </button>
 
@@ -930,12 +964,12 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
                   }}
                   className="p-3.5 rounded-3xl bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-md shadow-sm flex items-center gap-3 transition-all text-left active:scale-95 cursor-pointer"
                 >
-                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
                     <Camera className="w-5 h-5" />
                   </div>
                   <div>
                     <span className="font-black text-xs text-slate-900 block">Scan QR</span>
-                    <span className="text-[10px] text-slate-500 font-medium">Pay Offline</span>
+                    <span className="text-[10px] text-slate-500 font-medium">Receive Offline</span>
                   </div>
                 </button>
               </div>

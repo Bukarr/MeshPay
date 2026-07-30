@@ -27,9 +27,10 @@ import {
   markNotificationRead,
   getActiveUserId,
   isUserLoggedIn,
-  setUserLoggedIn
+  setUserLoggedIn,
+  getSecurityConfig
 } from './lib/storage';
-import { Transaction, Currency, NotificationItem } from './types';
+import { Transaction, Currency, NotificationItem, RecentReceiver } from './types';
 import { initFx10MinAutoRefresh } from './lib/liveFxRates';
 import { Radio, RefreshCw, WifiOff, AlertTriangle } from 'lucide-react';
 
@@ -58,9 +59,10 @@ export default function App() {
   const [showNotificationsModal, setShowNotificationsModal] = useState<boolean>(false);
   const [displayCurrency, setDisplayCurrency] = useState<Currency>('USD');
   const [showSecureAccess, setShowSecureAccess] = useState<boolean>(false);
+  const [prefilledRecipient, setPrefilledRecipient] = useState<RecentReceiver | null>(null);
 
   const handleManualSync = useCallback(() => {
-    if (pendingOfflineCount > 0) {
+    if (pendingOfflineCount > 0 && getSecurityConfig().syncAccess) {
       setShowSecureAccess(true);
     } else {
       triggerAutoSync();
@@ -222,6 +224,7 @@ export default function App() {
             onOpenReceiveQr={() => setShowReceiveQr(true)}
             onOpenSendQr={() => setShowSendQr(true)}
             triggerAutoSync={handleManualSync}
+            prefilledRecipient={prefilledRecipient}
           />
         )}
 
@@ -258,6 +261,9 @@ export default function App() {
       <BottomNav
         activeTab={activeTab}
         setActiveTab={(tab) => {
+          if (tab !== 'remit') {
+            setPrefilledRecipient(null);
+          }
           setActiveTab(tab);
         }}
         pendingOfflineCount={pendingOfflineCount}
@@ -272,9 +278,16 @@ export default function App() {
 
       <OfflineReceiveQrModal
         isOpen={showReceiveQr}
-        onClose={() => setShowReceiveQr(false)}
+        onClose={() => {
+          setShowReceiveQr(false);
+        }}
         user={user}
         amountNgn={5000}
+        onSelectRecentRecipient={(rec) => {
+          setPrefilledRecipient(rec);
+          setShowReceiveQr(false);
+          setActiveTab('remit');
+        }}
       />
 
       <OfflineSendQrModal

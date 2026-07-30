@@ -2,7 +2,7 @@ import { UserProfile, NigerianBank, NearbyPeer, Transaction, ExchangeRate, FxHis
 import { generateSvgAvatar } from '../lib/avatarHelper';
 
 export const INITIAL_USER_PROFILE: UserProfile = {
-  name: 'Adewale Lawson (Naira Account)',
+  name: 'Adewale Lawson',
   email: 'adewale.lawson@meshpay.io',
   phone: '08012345678',
   tag: '$adewale_ngn',
@@ -11,7 +11,7 @@ export const INITIAL_USER_PROFILE: UserProfile = {
   ngnBalance: 1420000.00,
   virtualAccountNgn: '9021849201',
   virtualAccountUsd: '409218294012',
-  bankName: 'MeshPay Account (GTBank Node)',
+  bankName: 'MeshPay Account',
   tier: 'Tier 3 (Verified)',
   pin: '1234',
   biometricEnabled: true,
@@ -21,7 +21,7 @@ export const INITIAL_USER_PROFILE: UserProfile = {
 };
 
 export const SECOND_USER_PROFILE: UserProfile = {
-  name: 'Fatima Bello (US Diaspora)',
+  name: 'Fatima Bello',
   email: 'fatima.bello@meshpay.io',
   phone: '08098765432',
   tag: '$fatima_us',
@@ -49,7 +49,7 @@ export const THIRD_USER_PROFILE: UserProfile = {
   ngnBalance: 120000.00,
   virtualAccountNgn: '7039102938',
   virtualAccountUsd: '409218299900',
-  bankName: 'Moniepoint MFB / MeshPay Vault',
+  bankName: 'MeshPay USD Vault',
   tier: 'Tier 2 (Verified)',
   pin: '9012',
   biometricEnabled: true,
@@ -109,7 +109,7 @@ export const INITIAL_NEARBY_PEERS: NearbyPeer[] = [
     signalStrength: 'strong',
     connectionType: 'BLE Mesh',
     accountNumber: '8092318492',
-    bankName: 'GTBank / MeshPay Vault',
+    bankName: 'MeshPay Account',
     isVerified: true,
     publicKey: 'mp_sec_0x3a1b8c...f11d'
   },

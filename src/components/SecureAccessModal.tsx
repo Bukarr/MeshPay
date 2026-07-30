@@ -11,6 +11,7 @@ import {
   Cpu,
   Layers
 } from 'lucide-react';
+import { getSecurityConfig } from '../lib/storage';
 
 interface SecureAccessModalProps {
   isOpen: boolean;
@@ -38,6 +39,17 @@ export const SecureAccessModal: React.FC<SecureAccessModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      const config = getSecurityConfig();
+      if (!config.syncAccess) {
+        setAuthStage('verified');
+        setAuthSubtext('Biometric requirement disabled. Auto-authorizing ledger sync...');
+        const timer = setTimeout(() => {
+          onSuccess();
+          onClose();
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+
       setAuthStage('idle');
       setErrorMessage(null);
       setPin('');
