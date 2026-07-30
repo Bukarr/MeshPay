@@ -19,6 +19,7 @@ import { generateDynamicCryptoCode, encryptTransactionPayload } from '../lib/qrC
 import { addTransaction, getRecentOfflineReceivers } from '../lib/storage';
 import { addNotification } from '../lib/notifications';
 import { SuccessCelebration } from './SuccessCelebration';
+import { BiometricModal } from './BiometricModal';
 
 interface OfflineReceiveQrModalProps {
   isOpen: boolean;
@@ -38,6 +39,7 @@ export const OfflineReceiveQrModal: React.FC<OfflineReceiveQrModalProps> = ({
   const [amount, setAmount] = useState<number>(amountNgn || 5000);
   const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
   const [authorizedTx, setAuthorizedTx] = useState<Transaction | null>(null);
+  const [showBiometricModal, setShowBiometricModal] = useState<boolean>(false);
 
   const recentRecipients = useMemo(() => {
     return getRecentOfflineReceivers(user.phone);
@@ -97,9 +99,10 @@ export const OfflineReceiveQrModal: React.FC<OfflineReceiveQrModalProps> = ({
       recipientName: user.name, // The sender's name
       recipientDetail: `${user.virtualAccountNgn || user.phone} (MeshPay)`, // The sender's account detail
       bankName: 'MeshPay Account',
-      offlineNonce: 'NONCE_' + cryptoCodeObj.code
+      offlineNonce: 'NONCE_' + cryptoCodeObj.code,
+      created_at: cryptoCodeObj.expiresAt - 5 * 60 * 1000
     }, cryptoCodeObj.code);
-  }, [cryptoCodeObj.code, amount, user.name, user.virtualAccountNgn, user.phone, authorizedTx]);
+  }, [cryptoCodeObj.code, cryptoCodeObj.expiresAt, amount, user.name, user.virtualAccountNgn, user.phone, authorizedTx]);
 
   const isOverBalance = amount > user.ngnBalance;
 
@@ -112,6 +115,13 @@ export const OfflineReceiveQrModal: React.FC<OfflineReceiveQrModalProps> = ({
       alert('Please enter a valid amount to send.');
       return;
     }
+
+    // Trigger fingerprint/PIN authentication before generating QR
+    setShowBiometricModal(true);
+  };
+
+  const executeAuthorizeAndGenerate = () => {
+    setShowBiometricModal(false);
 
     const tx: Transaction = {
       id: 'tx_p2p_off_send_' + Date.now(),
@@ -435,6 +445,14 @@ export const OfflineReceiveQrModal: React.FC<OfflineReceiveQrModalProps> = ({
           </button>
         </div>
       </div>
+
+      <BiometricModal
+        isOpen={showBiometricModal}
+        onClose={() => setShowBiometricModal(false)}
+        onSuccess={executeAuthorizeAndGenerate}
+        amountDisplay={`₦${amount.toLocaleString()}`}
+        recipientDisplay="Generate Secure Send QR"
+      />
     </div>
   );
 };

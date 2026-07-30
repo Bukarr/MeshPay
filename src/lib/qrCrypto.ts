@@ -17,6 +17,7 @@ export interface EncryptedTxPayload {
   timestamp: string;
   expiresAt: number;
   salt: string;
+  created_at?: number;
 }
 
 /**
@@ -66,15 +67,17 @@ export function encryptTransactionPayload(
     bankName?: string;
     offlineNonce?: string;
     timestamp?: string;
+    created_at?: number;
   },
   cryptoCode?: string
 ): string {
   const salt = Math.random().toString(36).substring(2, 10);
-  const expiresAt = Date.now() + 5 * 60 * 1000; // 5 mins valid
+  const now = Date.now();
+  const expiresAt = now + 5 * 60 * 1000; // 5 mins valid
 
   const payloadObj: EncryptedTxPayload = {
     version: 'MESHPAY_v2_ENC',
-    txId: tx.id || 'TX_' + Date.now(),
+    txId: tx.id || 'TX_' + now,
     sourceAmount: tx.sourceAmount,
     sourceCurrency: tx.sourceCurrency,
     targetAmount: tx.targetAmount,
@@ -85,7 +88,8 @@ export function encryptTransactionPayload(
     offlineNonce: tx.offlineNonce || 'NONCE_' + Math.floor(Math.random() * 1000000),
     timestamp: tx.timestamp || new Date().toISOString(),
     expiresAt,
-    salt
+    salt,
+    created_at: tx.created_at || now
   };
 
   const jsonStr = JSON.stringify(payloadObj);
@@ -104,16 +108,24 @@ export function decryptAndVerifyQrPayload(encryptedStr: string): {
   error?: string;
 } {
   if (!encryptedStr || typeof encryptedStr !== 'string') {
-    return { valid: false, error: 'Invalid or empty QR payload format' };
+    return { valid: false, error: 'SECURITY ERROR: Invalid or empty QR payload format. Transaction rejected.' };
   }
 
   const trimmed = encryptedStr.trim();
+
+  // Strictly reject if not starting with the official MESHPAY app protocol prefix
+  if (!trimmed.startsWith('MESHPAY:')) {
+    return { 
+      valid: false, 
+      error: 'SECURITY ERROR: Non-MeshPay QR detected! This QR code does not belong to this application. Transaction strictly rejected to prevent fraud.' 
+    };
+  }
 
   // Handle encrypted MESHPAY:ENC format
   if (trimmed.startsWith('MESHPAY:ENC:')) {
     const parts = trimmed.split(':');
     if (parts.length < 4) {
-      return { valid: false, error: 'Corrupted encrypted QR string structure' };
+      return { valid: false, error: 'SECURITY ERROR: Corrupted encrypted QR string structure. Transaction rejected.' };
     }
 
     const base64Data = parts[2];
@@ -129,43 +141,23 @@ export function decryptAndVerifyQrPayload(encryptedStr: string): {
         return { valid: false, error: 'SECURITY WARNING: Checksum mismatch! Potential transaction hijacking or payload tampering detected.' };
       }
 
-      // Check Expiration (with a 30-min tolerance window for offline cross-border)
-      if (payloadObj.expiresAt && Date.now() > payloadObj.expiresAt + 30 * 60 * 1000) {
-        return { valid: false, error: 'QR Code payload has expired for immediate processing.' };
+      // Check Expiration strictly (strictly 5-minute expiry, no tolerance)
+      const now = Date.now();
+      const isExpiredByDate = payloadObj.expiresAt && now > payloadObj.expiresAt;
+      const isExpiredByCreatedAt = payloadObj.created_at && (now - payloadObj.created_at > 5 * 60 * 1000);
+
+      if (isExpiredByDate || isExpiredByCreatedAt) {
+        return { 
+          valid: false, 
+          error: 'SECURITY ERROR: Expired QR Code! This QR code was generated more than 5 minutes ago and has expired. For your security, transactions must be completed within 5 minutes to prevent replay fraud.' 
+        };
       }
 
       return { valid: true, txData: payloadObj };
     } catch (e) {
-      return { valid: false, error: 'Failed to decrypt payload. Corrupted ciphertext.' };
+      return { valid: false, error: 'SECURITY ERROR: Failed to decrypt payload. Corrupted ciphertext.' };
     }
   }
 
-  // Handle legacy or plain JSON QR formats fallback safely
-  try {
-    const obj = JSON.parse(trimmed);
-    if (obj.userTag || obj.account || obj.protocol) {
-      return {
-        valid: true,
-        txData: {
-          version: 'MESHPAY_v1_LEGACY',
-          txId: 'TX_LEGCY_' + Date.now(),
-          sourceAmount: obj.requestedAmount || 5000,
-          sourceCurrency: 'NGN',
-          targetAmount: obj.requestedAmount || 5000,
-          targetCurrency: 'NGN',
-          recipientName: obj.userTag || 'Peer Receiver',
-          recipientDetail: `${obj.account || 'Account'} (${obj.bank || 'Bank'})`,
-          bankName: obj.bank || 'Vault Bank',
-          offlineNonce: obj.offlineNonce || 'NONCE_LGCY',
-          timestamp: new Date().toISOString(),
-          expiresAt: Date.now() + 5 * 60 * 1000,
-          salt: 'legacy'
-        }
-      };
-    }
-  } catch (e) {
-    // ignore
-  }
-
-  return { valid: false, error: 'Unrecognized MeshPay QR protocol structure.' };
+  return { valid: false, error: 'SECURITY ERROR: Unrecognized MeshPay QR protocol structure. Transaction rejected.' };
 }

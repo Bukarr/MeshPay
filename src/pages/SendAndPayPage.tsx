@@ -32,7 +32,7 @@ import {
 import { UserProfile, ExchangeRate, NigerianBank, Transaction, NearbyPeer, RecentReceiver } from '../types';
 import { NIGERIAN_BANKS, INITIAL_USER_PROFILE, SECOND_USER_PROFILE, THIRD_USER_PROFILE } from '../data/mockData';
 import { WORLD_CURRENCIES, WorldCurrency, getCurrency, convertCurrency, formatCurrencyAmount } from '../lib/currencies';
-import { BiometricModal } from '../components/BiometricModal';
+import { PinEntryModal } from '../components/PinEntryModal';
 import { SecurityModal } from '../components/SecurityModal';
 import { OfflineReceiveQrModal } from '../components/OfflineReceiveQrModal';
 import { OfflineSendQrModal } from '../components/OfflineSendQrModal';
@@ -292,14 +292,8 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
       return alert(`Insufficient USD balance. Maximum available: $${user.usdBalance.toLocaleString('en-US')}`);
     }
 
-    const isHighValue = (sourceCurrencyCode === 'NGN' && inputAmount > 50000) || (sourceCurrencyCode === 'USD' && inputAmount > 50);
-    const securityConfig = getSecurityConfig();
-
-    if (securityConfig.highValueTransfers && isHighValue) {
-      setShowBiometricModal(true);
-    } else {
-      handleBankAuthSuccess();
-    }
+    // Strict fraud prevention: Every transaction strictly requires biometric verification
+    setShowBiometricModal(true);
   };
 
   const resetFormState = () => {
@@ -1105,13 +1099,14 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
         </div>
       )}
 
-      {/* Security PIN Authorization Modal */}
-      <BiometricModal
+      {/* Numeric PIN Authorization Modal */}
+      <PinEntryModal
         isOpen={showBiometricModal}
         onClose={() => setShowBiometricModal(false)}
         onSuccess={handleBankAuthSuccess}
+        userPin={user.pin}
         amountDisplay={formatCurrencyAmount(inputAmount, sourceCurrencyCode)}
-        recipientName={beneficiaryName}
+        recipientDisplay={beneficiaryName}
       />
 
       <SecurityModal

@@ -21,7 +21,7 @@ import {
   EncryptedTxPayload,
   encryptTransactionPayload 
 } from '../lib/qrCrypto';
-import { BiometricModal } from './BiometricModal';
+import { PinEntryModal } from './PinEntryModal';
 import { SuccessCelebration } from './SuccessCelebration';
 
 interface OfflineSendQrModalProps {
@@ -603,11 +603,12 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
         </div>
       </div>
 
-      {/* Biometric Authorization Modal overlay (PIN / Liveness / Fingerprint) */}
-      <BiometricModal
+      {/* Numeric PIN Authorization Modal */}
+      <PinEntryModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         onSuccess={handleAuthorizationSuccess}
+        userPin={user.pin}
         amountDisplay={`₦${sendAmount.toLocaleString()} NGN`}
         recipientDisplay={`${scannedRecipient?.name || ''}`}
       />

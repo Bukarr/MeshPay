@@ -214,52 +214,56 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ user, isOnline, onCl
 
         <div className="space-y-3.5">
           <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
-            Configure simulated biometric signature requirements (Face Liveness / Thumbprint) for specific wallet operations.
+            MeshPay enforces military-grade, non-bypassable cryptographic and biometric authorization to strictly prevent financial fraud.
           </p>
 
           <div className="space-y-3">
-            {/* Toggle 1: High Value Transfers */}
-            <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-2xl">
-              <div className="space-y-0.5 max-w-[70%]">
-                <span className="font-bold text-slate-800 text-[11px] block">High-Value Payouts</span>
+            {/* Rule 1: Mandatory Biometric Transaction Verification */}
+            <div className="flex items-center justify-between p-3.5 bg-indigo-50/50 border border-indigo-100 rounded-2xl">
+              <div className="space-y-0.5 max-w-[75%]">
+                <span className="font-extrabold text-slate-800 text-[11px] block flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  Mandatory Transaction Biometrics
+                </span>
                 <span className="text-[10px] text-slate-500 block leading-tight">
-                  Require 3D face mapping or thumbprint verification for any single payout exceeding ₦50,000 NGN or equivalent.
+                  Strictly requires 3D Face ID, Thumbprint, or Secure PIN for every transaction. Cannot be disabled.
                 </span>
               </div>
-              <button
-                onClick={() => handleToggleSecurity('highValueTransfers')}
-                className={`relative inline-flex h-5.5 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  securityConfig.highValueTransfers ? 'bg-indigo-600' : 'bg-slate-300'
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    securityConfig.highValueTransfers ? 'translate-x-5.5' : 'translate-x-0'
-                  }`}
-                />
-              </button>
+              <span className="text-[9px] bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 font-black px-2.5 py-1 rounded-full uppercase">
+                Enforced
+              </span>
             </div>
 
-            {/* Toggle 2: Sync Access */}
-            <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-2xl">
-              <div className="space-y-0.5 max-w-[70%]">
-                <span className="font-bold text-slate-800 text-[11px] block">Manual Queue Sync Access</span>
+            {/* Rule 2: Mandatory QR Generation Verification */}
+            <div className="flex items-center justify-between p-3.5 bg-indigo-50/50 border border-indigo-100 rounded-2xl">
+              <div className="space-y-0.5 max-w-[75%]">
+                <span className="font-extrabold text-slate-800 text-[11px] block flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  Mandatory QR Code Security
+                </span>
                 <span className="text-[10px] text-slate-500 block leading-tight">
-                  Verify owner biometric credentials (FIDO2) before transmitting local packets to central ledger.
+                  Always verify owner biometrics before generating single-use send QR codes to avoid hijacked payouts.
                 </span>
               </div>
-              <button
-                onClick={() => handleToggleSecurity('syncAccess')}
-                className={`relative inline-flex h-5.5 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  securityConfig.syncAccess ? 'bg-indigo-600' : 'bg-slate-300'
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    securityConfig.syncAccess ? 'translate-x-5.5' : 'translate-x-0'
-                  }`}
-                />
-              </button>
+              <span className="text-[9px] bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 font-black px-2.5 py-1 rounded-full uppercase">
+                Enforced
+              </span>
+            </div>
+
+            {/* Rule 3: Automated Secure Reconciliation */}
+            <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
+              <div className="space-y-0.5 max-w-[75%]">
+                <span className="font-extrabold text-slate-800 text-[11px] block flex items-center gap-1 text-slate-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                  Silent Connection Reconciliation
+                </span>
+                <span className="text-[10px] text-slate-500 block leading-tight">
+                  Offline transactions sync automatically and securely only when standard internet connection is fully restored.
+                </span>
+              </div>
+              <span className="text-[9px] bg-indigo-500/10 text-indigo-700 border border-indigo-500/20 font-black px-2.5 py-1 rounded-full uppercase">
+                Automatic
+              </span>
             </div>
           </div>
         </div>

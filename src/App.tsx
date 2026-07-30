@@ -5,7 +5,6 @@ import { TransactionReceiptModal } from './components/TransactionReceiptModal';
 import { OfflineReceiveQrModal } from './components/OfflineReceiveQrModal';
 import { OfflineSendQrModal } from './components/OfflineSendQrModal';
 import { NotificationModal } from './components/NotificationModal';
-import { SecureAccessModal } from './components/SecureAccessModal';
 import { SyncReconciliationToast } from './components/SyncReconciliationToast';
 import { PwaInstallBanner } from './components/PwaInstallBanner';
 
@@ -62,12 +61,12 @@ export default function App() {
   const [prefilledRecipient, setPrefilledRecipient] = useState<RecentReceiver | null>(null);
 
   const handleManualSync = useCallback(() => {
-    if (pendingOfflineCount > 0 && getSecurityConfig().syncAccess) {
-      setShowSecureAccess(true);
-    } else {
-      triggerAutoSync();
+    if (!isOnline) {
+      alert("Offline Mode: Transactions will sync strictly only when your network is restored.");
+      return;
     }
-  }, [pendingOfflineCount, triggerAutoSync]);
+    triggerAutoSync();
+  }, [isOnline, triggerAutoSync]);
 
   // Reload local state on custom window storage events
   const reloadData = useCallback(() => {
@@ -330,13 +329,6 @@ export default function App() {
             setActiveTab('dashboard');
           }
         }}
-      />
-
-      <SecureAccessModal
-        isOpen={showSecureAccess}
-        onClose={() => setShowSecureAccess(false)}
-        onSuccess={triggerAutoSync}
-        pendingCount={pendingOfflineCount}
       />
     </div>
   );

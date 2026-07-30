@@ -18,6 +18,7 @@ import { PRESET_ACCOUNTS, INITIAL_NEARBY_PEERS } from '../data/mockData';
 import { getTrustProfile, UserTrustProfile } from '../lib/trustScore';
 import { addTransaction, getStoredUserProfile, isUsdAccount } from '../lib/storage';
 import { addNotification } from '../lib/notifications';
+import { BiometricModal } from './BiometricModal';
 
 interface QuickSendModalProps {
   isOpen: boolean;
@@ -34,6 +35,7 @@ export const QuickSendModal: React.FC<QuickSendModalProps> = ({
   onTransactionComplete,
   initialRecipientTag = '$fatima_b'
 }) => {
+  const [showBiometricModal, setShowBiometricModal] = useState<boolean>(false);
   // Frequent contacts derived from system peers
   const frequentContacts = [
     {
@@ -116,6 +118,12 @@ export const QuickSendModal: React.FC<QuickSendModalProps> = ({
       return alert(`Insufficient USD balance. You have $${currentUser.usdBalance.toLocaleString()} USD.`);
     }
 
+    // Trigger biometric security before execution
+    setShowBiometricModal(true);
+  };
+
+  const executeQuickSendAfterAuth = () => {
+    setShowBiometricModal(false);
     setIsProcessing(true);
 
     setTimeout(() => {
@@ -401,6 +409,14 @@ export const QuickSendModal: React.FC<QuickSendModalProps> = ({
         </div>
 
       </div>
+
+      <BiometricModal
+        isOpen={showBiometricModal}
+        onClose={() => setShowBiometricModal(false)}
+        onSuccess={executeQuickSendAfterAuth}
+        amountDisplay={currency === 'USD' ? `$${amount.toLocaleString()}` : `₦${amount.toLocaleString()}`}
+        recipientName={selectedContact.name}
+      />
     </div>
   );
 };

@@ -84,6 +84,15 @@ export function useNetworkStatus() {
   }, [checkConnectionQuality, refreshQueue]);
 
   const triggerAutoSync = useCallback(async () => {
+    if (!realOnline) {
+      setSyncState({
+        isSyncing: false,
+        stepMessage: 'Sync strictly pending. Awaiting network restoration.',
+        progressPercent: 0,
+        lastSyncedCount: 0
+      });
+      return;
+    }
     const queuedCount = getOfflineQueuedTransactions().length + getStoreAndForwardQueue().filter(p => p.status === 'queued_store_forward').length;
     if (queuedCount === 0) return;
 
