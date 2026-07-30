@@ -276,14 +276,6 @@ export const OfflineReceiveQrModal: React.FC<OfflineReceiveQrModalProps> = ({
                     <Download className="w-4 h-4 text-emerald-400" />
                     <span>Download QR Code Image (PNG)</span>
                   </button>
-
-                  <button
-                    onClick={handleSimulatePaymentReceived}
-                    className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold flex items-center justify-center gap-2 transition-all shadow-md shadow-emerald-600/20"
-                  >
-                    <Zap className="w-4 h-4 text-emerald-200 fill-emerald-200" />
-                    <span>Simulate Payment Received</span>
-                  </button>
                 </div>
               </div>
 

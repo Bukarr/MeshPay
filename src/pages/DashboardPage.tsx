@@ -23,6 +23,7 @@ import {
   Camera,
   Users
 } from 'lucide-react';
+import { isUsdAccount } from '../lib/storage';
 import { UserProfile, Transaction, ExchangeRate } from '../types';
 import { FxRateChart } from '../components/FxRateChart';
 import { QuickSendModal } from '../components/QuickSendModal';
@@ -104,7 +105,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     }
   ].filter(c => c.tag.toLowerCase() !== user.tag.toLowerCase());
 
-  const activeAccount = user.usdBalance > 0 && user.ngnBalance === 0 ? user.virtualAccountUsd : user.virtualAccountNgn;
+  const isUsd = isUsdAccount(user);
+  const activeAccount = isUsd ? user.virtualAccountUsd : user.virtualAccountNgn;
 
   const handleCopyAccount = () => {
     navigator.clipboard.writeText(activeAccount);
@@ -147,7 +149,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
         {/* Balance Header with Eye Toggle */}
         <div className="flex items-center justify-between mb-1">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Account Balance</span>
+          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            {isUsd ? 'USD Account Balance' : 'Account Balance'}
+          </span>
           <button
             onClick={() => setShowBalance(!showBalance)}
             className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center gap-1.5 transition-colors border border-slate-700"
@@ -159,10 +163,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
         {/* Main Balance Display */}
         <div className="text-3xl sm:text-4xl font-black tracking-tight text-white font-mono my-2">
-          {user.usdBalance > 0 && user.ngnBalance === 0 ? (
-            <span>{showBalance ? `$${user.usdBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '••••••••'}</span>
+          {isUsd ? (
+            <span>{showBalance ? `$${user.usdBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD` : '••••••••'}</span>
           ) : (
-            <span>{showBalance ? `₦${user.ngnBalance.toLocaleString('en-NG', { minimumFractionDigits: 2 })}` : '••••••••'}</span>
+            <span>{showBalance ? `₦${user.ngnBalance.toLocaleString('en-NG', { minimumFractionDigits: 2 })} NGN` : '••••••••'}</span>
           )}
         </div>
 

@@ -5,6 +5,7 @@ import { TransactionReceiptModal } from './components/TransactionReceiptModal';
 import { OfflineReceiveQrModal } from './components/OfflineReceiveQrModal';
 import { OfflineSendQrModal } from './components/OfflineSendQrModal';
 import { NotificationModal } from './components/NotificationModal';
+import { SecureAccessModal } from './components/SecureAccessModal';
 import { SyncReconciliationToast } from './components/SyncReconciliationToast';
 import { PwaInstallBanner } from './components/PwaInstallBanner';
 
@@ -56,6 +57,15 @@ export default function App() {
   const [showSendQr, setShowSendQr] = useState<boolean>(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState<boolean>(false);
   const [displayCurrency, setDisplayCurrency] = useState<Currency>('USD');
+  const [showSecureAccess, setShowSecureAccess] = useState<boolean>(false);
+
+  const handleManualSync = useCallback(() => {
+    if (pendingOfflineCount > 0) {
+      setShowSecureAccess(true);
+    } else {
+      triggerAutoSync();
+    }
+  }, [pendingOfflineCount, triggerAutoSync]);
 
   // Reload local state on custom window storage events
   const reloadData = useCallback(() => {
@@ -121,8 +131,12 @@ export default function App() {
         tamperAlert={tamperAlert}
         pendingOfflineCount={pendingOfflineCount}
         unreadNotificationCount={unreadNotifCount}
-        onOpenNotifications={() => setShowNotificationsModal(true)}
-        onOpenSync={triggerAutoSync}
+        onOpenNotifications={() => {
+          setShowNotificationsModal(true);
+          markAllNotificationsRead(user?.phone);
+          setNotifications(getStoredNotifications(user?.phone));
+        }}
+        onOpenSync={handleManualSync}
         onOpenSettings={() => setActiveTab('profile')}
         onToggleCurrency={toggleCurrency}
         displayCurrency={displayCurrency}
@@ -193,7 +207,7 @@ export default function App() {
             onOpenReceiveQr={() => setShowReceiveQr(true)}
             onOpenSendQr={() => setShowSendQr(true)}
             pendingOfflineCount={pendingOfflineCount}
-            triggerAutoSync={triggerAutoSync}
+            triggerAutoSync={handleManualSync}
             onTransactionComplete={handleTransactionComplete}
           />
         )}
@@ -207,7 +221,7 @@ export default function App() {
             onCancel={() => setActiveTab('dashboard')}
             onOpenReceiveQr={() => setShowReceiveQr(true)}
             onOpenSendQr={() => setShowSendQr(true)}
-            triggerAutoSync={triggerAutoSync}
+            triggerAutoSync={handleManualSync}
           />
         )}
 
@@ -216,7 +230,7 @@ export default function App() {
             user={user}
             isOnline={isOnline}
             onTransactionComplete={handleTransactionComplete}
-            triggerAutoSync={triggerAutoSync}
+            triggerAutoSync={handleManualSync}
             onOpenReceiveQr={() => setShowReceiveQr(true)}
             onOpenSendQr={() => setShowSendQr(true)}
           />
@@ -226,7 +240,7 @@ export default function App() {
           <TransactionsPage
             transactions={transactions}
             onSelectTransaction={(tx) => setSelectedTransaction(tx)}
-            triggerAutoSync={triggerAutoSync}
+            triggerAutoSync={handleManualSync}
             isOnline={isOnline}
           />
         )}
@@ -253,7 +267,7 @@ export default function App() {
       <TransactionReceiptModal
         transaction={selectedTransaction}
         onClose={() => setSelectedTransaction(null)}
-        onSyncNow={triggerAutoSync}
+        onSyncNow={handleManualSync}
       />
 
       <OfflineReceiveQrModal
@@ -275,13 +289,41 @@ export default function App() {
         onClose={() => setShowNotificationsModal(false)}
         notifications={notifications}
         onMarkAllRead={() => {
-          markAllNotificationsRead(user.phone);
-          setNotifications(getStoredNotifications(user.phone));
+          markAllNotificationsRead(user?.phone);
+          setNotifications(getStoredNotifications(user?.phone));
         }}
         onMarkRead={(id) => {
-          markNotificationRead(id, user.phone);
-          setNotifications(getStoredNotifications(user.phone));
+          markNotificationRead(id, user?.phone);
+          setNotifications(getStoredNotifications(user?.phone));
         }}
+        onClickNotification={(notif) => {
+          setShowNotificationsModal(false);
+          if (notif.type === 'transaction') {
+            setActiveTab('activity');
+            // Try to find if there's a matching transaction to open its receipt
+            const match = transactions.find(t => 
+              notif.message.includes(t.recipientName) || 
+              (t.bankName && notif.message.includes(t.bankName)) ||
+              notif.message.includes(t.sourceAmount.toLocaleString())
+            );
+            if (match) {
+              setSelectedTransaction(match);
+            }
+          } else if (notif.type === 'security') {
+            setActiveTab('profile');
+          } else if (notif.type === 'offline_sync') {
+            setActiveTab('nearby');
+          } else {
+            setActiveTab('dashboard');
+          }
+        }}
+      />
+
+      <SecureAccessModal
+        isOpen={showSecureAccess}
+        onClose={() => setShowSecureAccess(false)}
+        onSuccess={triggerAutoSync}
+        pendingCount={pendingOfflineCount}
       />
     </div>
   );

@@ -37,7 +37,7 @@ import { SecurityModal } from '../components/SecurityModal';
 import { OfflineReceiveQrModal } from '../components/OfflineReceiveQrModal';
 import { OfflineSendQrModal } from '../components/OfflineSendQrModal';
 import { useNearbyScan } from '../hooks/useNearbyScan';
-import { addTransaction, generateOfflineSignature, getOfflineQueuedTransactions } from '../lib/storage';
+import { addTransaction, generateOfflineSignature, getOfflineQueuedTransactions, isUsdAccount } from '../lib/storage';
 import { enqueueStoreAndForward } from '../lib/storeAndForward';
 import { addNotification } from '../lib/notifications';
 
@@ -67,11 +67,13 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
   // Top Level Mode: Bank & Multi-Currency vs Bluetooth Mesh & Offline P2P
   const [activeMode, setActiveMode] = useState<'bank' | 'mesh'>(initialMode);
 
+  const isUsdUser = isUsdAccount(user);
+
   // Bank & Multi-Currency Transfer State
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [transferDirection, setTransferDirection] = useState<'ngn_to_fx' | 'fx_to_ngn' | 'ngn_to_ngn'>('ngn_to_fx');
+  const [transferDirection, setTransferDirection] = useState<'ngn_to_fx' | 'fx_to_ngn' | 'ngn_to_ngn'>(isUsdUser ? 'fx_to_ngn' : 'ngn_to_fx');
   const [selectedCurrency, setSelectedCurrency] = useState<WorldCurrency>(WORLD_CURRENCIES[1]); // USD default
-  const [inputAmount, setInputAmount] = useState<number>(50000); // 50,000 NGN or $50
+  const [inputAmount, setInputAmount] = useState<number>(isUsdUser ? 100 : 50000); // $100 or 50,000 NGN
   
   // Local NGN Bank Transfer Inputs (Clean, zero pre-filled demo data)
   const [selectedBank, setSelectedBank] = useState<NigerianBank>(NIGERIAN_BANKS[0]);
@@ -105,23 +107,49 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
   const queuedTxs = getOfflineQueuedTransactions();
 
   // Calculation Logic for Currency Conversion
+  // Dynamic Calculation Logic for Currency Conversion
   let sourceCurrencyCode = 'NGN';
   let targetCurrencyCode = selectedCurrency.code;
   let sourceAmount = inputAmount;
   let targetAmount = inputAmount;
 
-  if (transferDirection === 'ngn_to_fx') {
+  // 1. Determine Source Currency Code based on active transferDirection
+  if (transferDirection === 'fx_to_ngn') {
+    sourceCurrencyCode = selectedCurrency.code; // e.g. USD
+  } else if (transferDirection === 'ngn_to_fx') {
     sourceCurrencyCode = 'NGN';
-    targetCurrencyCode = selectedCurrency.code;
-    targetAmount = convertCurrency(inputAmount, 'NGN', selectedCurrency.code, exchangeRate.usdToNgn);
-  } else if (transferDirection === 'fx_to_ngn') {
-    sourceCurrencyCode = selectedCurrency.code;
-    targetCurrencyCode = 'NGN';
-    targetAmount = convertCurrency(inputAmount, selectedCurrency.code, 'NGN', exchangeRate.usdToNgn);
   } else {
     sourceCurrencyCode = 'NGN';
+  }
+
+  // 2. Override Target Currency Code if a 12-digit USD or 10-digit NGN account is entered
+  if (accountNumber.length === 12) {
+    targetCurrencyCode = 'USD';
+  } else if (accountNumber.length === 10) {
     targetCurrencyCode = 'NGN';
+  } else {
+    if (transferDirection === 'ngn_to_fx') {
+      targetCurrencyCode = selectedCurrency.code;
+    } else if (transferDirection === 'fx_to_ngn') {
+      targetCurrencyCode = 'NGN';
+    } else {
+      targetCurrencyCode = 'NGN';
+    }
+  }
+
+  // 3. Compute target amount using the correct exchange rates
+  if (sourceCurrencyCode === targetCurrencyCode) {
     targetAmount = inputAmount;
+  } else if (sourceCurrencyCode === 'NGN' && targetCurrencyCode === 'USD') {
+    targetAmount = convertCurrency(inputAmount, 'NGN', 'USD', exchangeRate.usdToNgn);
+  } else if (sourceCurrencyCode === 'USD' && targetCurrencyCode === 'NGN') {
+    targetAmount = convertCurrency(inputAmount, 'USD', 'NGN', exchangeRate.usdToNgn);
+  } else {
+    if (transferDirection === 'ngn_to_fx') {
+      targetAmount = convertCurrency(inputAmount, 'NGN', selectedCurrency.code, exchangeRate.usdToNgn);
+    } else if (transferDirection === 'fx_to_ngn') {
+      targetAmount = convertCurrency(inputAmount, selectedCurrency.code, 'NGN', exchangeRate.usdToNgn);
+    }
   }
 
   // Known demo accounts map for instant account lookup & verification
@@ -144,10 +172,10 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
     'AMINA MOHAMMED'
   ];
 
-  // Handle Bank Account Number Auto-Verification (Immediately scans & auto-fills destination bank and recipient name on 10 digits)
+  // Handle Bank Account Number Auto-Verification (Immediately scans & auto-fills destination bank and recipient name on 10 or 12 digits)
   const handleAccountChange = (val: string) => {
-    // Strictly cap at max 10 digits only
-    const digitsOnly = val.replace(/\D/g, '').slice(0, 10);
+    // Cap at max 12 digits to allow both NGN (10) and USD (12) virtual account numbers
+    const digitsOnly = val.replace(/\D/g, '').slice(0, 12);
     setAccountNumber(digitsOnly);
 
     if (digitsOnly.length < 10) {
@@ -156,7 +184,16 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
       return;
     }
 
-    if (digitsOnly.length === 10) {
+    // Auto-detect USD Virtual Account and adjust transfer direction
+    if (digitsOnly.length === 12) {
+      if (transferDirection === 'ngn_to_ngn') {
+        setTransferDirection('ngn_to_fx');
+        setSelectedCurrency(WORLD_CURRENCIES.find(c => c.code === 'USD') || WORLD_CURRENCIES[1]);
+        setFxPayoutType('local_bank');
+      }
+    }
+
+    if (digitsOnly.length === 10 || digitsOnly.length === 12) {
       setIsVerifyingAccount(true);
       setTimeout(() => {
         setIsVerifyingAccount(false);
@@ -165,16 +202,26 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
 
         // 1. Check if logged-in user's own MeshPay account
         if (digitsOnly === user.virtualAccountNgn) {
-          setBeneficiaryName(`${user.name} (Self - MeshPay Account)`);
+          setBeneficiaryName(user.name);
+          setSelectedBank(meshPayBank);
+          return;
+        } else if (digitsOnly === user.virtualAccountUsd) {
+          setBeneficiaryName(user.name);
           setSelectedBank(meshPayBank);
           return;
         }
 
         // 2. Check preset MeshPay app user profiles
         const meshUsers = [INITIAL_USER_PROFILE, SECOND_USER_PROFILE, THIRD_USER_PROFILE];
-        const matchedMeshUser = meshUsers.find(u => u.virtualAccountNgn === digitsOnly);
-        if (matchedMeshUser) {
-          setBeneficiaryName(`${matchedMeshUser.name} (MeshPay Account)`);
+        const matchedNgnUser = meshUsers.find(u => u.virtualAccountNgn === digitsOnly);
+        if (matchedNgnUser) {
+          setBeneficiaryName(matchedNgnUser.name);
+          setSelectedBank(meshPayBank);
+          return;
+        }
+        const matchedUsdUser = meshUsers.find(u => u.virtualAccountUsd === digitsOnly);
+        if (matchedUsdUser) {
+          setBeneficiaryName(matchedUsdUser.name);
           setSelectedBank(meshPayBank);
           return;
         }
@@ -188,10 +235,10 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
           return;
         }
 
-        // 4. Deterministic name lookup for any other valid 10-digit NIBSS account number
+        // 4. Deterministic name lookup for any other valid account number
         const sum = digitsOnly.split('').reduce((acc, curr) => acc + (parseInt(curr, 10) || 0), 0);
         const resolvedName = VERIFIED_SAMPLE_NAMES[sum % VERIFIED_SAMPLE_NAMES.length];
-        setBeneficiaryName(resolvedName);
+        setBeneficiaryName(`${resolvedName} (Verified)`);
       }, 350);
     }
   };
@@ -201,7 +248,9 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
 
     const isLocalBankPayout = transferDirection === 'ngn_to_ngn' || fxPayoutType === 'local_bank';
     if (isLocalBankPayout) {
-      if (accountNumber.length < 10) return alert('Please enter a valid 10-digit bank account number');
+      if (accountNumber.length !== 10 && accountNumber.length !== 12) {
+        return alert('Please enter a valid 10-digit NGN or 12-digit USD virtual account number');
+      }
       if (!beneficiaryName.trim()) return alert('Please enter or verify the recipient account name');
     } else {
       if (!walletAddress.trim()) return alert('Please enter or paste the destination FX/Crypto Wallet Address');
@@ -599,7 +648,7 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-bold text-slate-700 block">Account Number (10 Digits Max):</label>
+                    <label className="text-xs font-bold text-slate-700 block">Account Number (10 or 12 Digits):</label>
                     <button
                       type="button"
                       onClick={async () => {
@@ -626,17 +675,17 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
                         const pasted = e.clipboardData.getData('text');
                         handleAccountChange(pasted);
                       }}
-                      placeholder="e.g. 0123456789"
-                      maxLength={10}
+                      placeholder="Account number only"
+                      maxLength={12}
                       className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl font-mono font-bold text-sm text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                     />
                     {isVerifyingAccount ? (
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-indigo-600 font-bold flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded-xl border border-indigo-200">
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Verifying NIBSS...
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Verifying...
                       </span>
                     ) : (
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-mono font-bold text-slate-400">
-                        {accountNumber.length}/10
+                        {accountNumber.length}/12
                       </span>
                     )}
                   </div>
@@ -652,7 +701,7 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
                       type="text"
                       value={beneficiaryName}
                       onChange={(e) => setBeneficiaryName(e.target.value)}
-                      placeholder="Auto-verifies when 10 digits are typed/pasted..."
+                      placeholder="Auto-verifies when 10 or 12 digits are typed/pasted..."
                       className={`text-xs font-extrabold bg-transparent focus:outline-none w-full ${
                         beneficiaryName ? 'text-emerald-950 font-black' : 'text-slate-900'
                       }`}
@@ -661,7 +710,7 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
                   {beneficiaryName && (
                     <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-emerald-700 font-extrabold px-1 animate-fadeIn">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>NIBSS Instant Account Verified • {selectedBank.name}</span>
+                      <span>{accountNumber.length === 12 ? 'MeshPay USD Cross-Border Virtual Account Verified' : `NIBSS Instant Account Verified • ${selectedBank.name}`}</span>
                     </div>
                   )}
                 </div>
@@ -861,7 +910,6 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    if (onOpenReceiveQr) onOpenReceiveQr();
                     setLocalShowReceiveModal(true);
                   }}
                   className="p-3.5 rounded-3xl bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-md shadow-sm flex items-center gap-3 transition-all text-left active:scale-95 cursor-pointer"
@@ -878,7 +926,6 @@ export const SendAndPayPage: React.FC<SendAndPayPageProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    if (onOpenSendQr) onOpenSendQr();
                     setLocalShowSendModal(true);
                   }}
                   className="p-3.5 rounded-3xl bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-md shadow-sm flex items-center gap-3 transition-all text-left active:scale-95 cursor-pointer"

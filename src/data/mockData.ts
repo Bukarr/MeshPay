@@ -16,7 +16,8 @@ export const INITIAL_USER_PROFILE: UserProfile = {
   pin: '1234',
   biometricEnabled: true,
   kycVerified: true,
-  publicKey: 'mp_sec_0x9f8a3c...e42b'
+  publicKey: 'mp_sec_0x9f8a3c...e42b',
+  primaryCurrency: 'NGN'
 };
 
 export const SECOND_USER_PROFILE: UserProfile = {
@@ -34,7 +35,8 @@ export const SECOND_USER_PROFILE: UserProfile = {
   pin: '5678',
   biometricEnabled: true,
   kycVerified: true,
-  publicKey: 'mp_sec_0x3a1b8c...f11d'
+  publicKey: 'mp_sec_0x3a1b8c...f11d',
+  primaryCurrency: 'USD'
 };
 
 export const THIRD_USER_PROFILE: UserProfile = {
@@ -52,7 +54,8 @@ export const THIRD_USER_PROFILE: UserProfile = {
   pin: '9012',
   biometricEnabled: true,
   kycVerified: true,
-  publicKey: 'mp_sec_0x9d44...12c8'
+  publicKey: 'mp_sec_0x9d44...12c8',
+  primaryCurrency: 'NGN'
 };
 
 export const PRESET_ACCOUNTS = [

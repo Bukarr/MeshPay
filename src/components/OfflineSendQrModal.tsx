@@ -14,8 +14,8 @@ import {
   RefreshCw,
   HelpCircle
 } from 'lucide-react';
-import { UserProfile, Transaction } from '../types';
-import { addTransaction, generateOfflineSignature } from '../lib/storage';
+import { UserProfile, Transaction, RecentReceiver } from '../types';
+import { addTransaction, generateOfflineSignature, getRecentOfflineReceivers, saveRecentOfflineReceiver } from '../lib/storage';
 import { addNotification } from '../lib/notifications';
 import { INITIAL_NEARBY_PEERS } from '../data/mockData';
 import { 
@@ -65,6 +65,13 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
   const [paymentSuccess, setPaymentSuccess] = useState<boolean>(false);
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
   const [lastCompletedTx, setLastCompletedTx] = useState<Transaction | null>(null);
+  const [recentReceivers, setRecentReceivers] = useState<RecentReceiver[]>([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setRecentReceivers(getRecentOfflineReceivers(user.phone));
+    }
+  }, [isOpen, user.phone]);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -231,6 +238,28 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
     reader.readAsDataURL(file);
   };
 
+  const handleSelectRecentReceiver = (receiver: RecentReceiver) => {
+    stopCameraStream();
+    setVerifiedTx({
+      id: 'tx_sim_rec_' + Date.now(),
+      sourceAmount: 5000,
+      sourceCurrency: 'NGN',
+      targetAmount: 5000,
+      targetCurrency: 'NGN',
+      recipientName: receiver.name,
+      recipientDetail: receiver.account,
+      bankName: receiver.bank,
+      offlineNonce: 'NONCE_REC_' + receiver.id
+    });
+    setSendAmount(5000);
+    setScannedRecipient({
+      name: receiver.name,
+      tag: receiver.tag,
+      account: receiver.account,
+      bank: receiver.bank
+    });
+  };
+
   const handleSelectSimulatedPeer = (peer: typeof INITIAL_NEARBY_PEERS[0]) => {
     stopCameraStream();
     const simulatedQr = encryptTransactionPayload({
@@ -285,6 +314,19 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
 
       addTransaction(tx);
       setLastCompletedTx(tx);
+
+      // Save to recent receivers list
+      saveRecentOfflineReceiver({
+        id: 'rec_' + Date.now(),
+        name: scannedRecipient.name,
+        tag: scannedRecipient.tag || scannedRecipient.name,
+        account: scannedRecipient.account,
+        bank: scannedRecipient.bank,
+        avatar: undefined
+      }, user.phone);
+
+      // Refresh local recent list state
+      setRecentReceivers(getRecentOfflineReceivers(user.phone));
 
       addNotification({
         type: 'offline_queue',
@@ -445,6 +487,39 @@ export const OfflineSendQrModal: React.FC<OfflineSendQrModalProps> = ({
                 <div className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-300 text-[11px] flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 shrink-0 text-red-400" />
                   <span>{scanError}</span>
+                </div>
+              )}
+
+              {/* Recent Receivers (Offline) */}
+              {!verifiedTx && recentReceivers.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-[10px] font-extrabold text-indigo-300 uppercase tracking-wider block">
+                    Or Quick Transfer to Recent Receivers:
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {recentReceivers.map((receiver) => (
+                      <button
+                        key={receiver.id}
+                        onClick={() => handleSelectRecentReceiver(receiver)}
+                        disabled={isExpired}
+                        className={`p-2 bg-slate-950 border border-slate-800 rounded-xl text-left flex items-center gap-2 transition-all ${
+                          isExpired ? 'opacity-50 cursor-not-allowed' : 'hover:border-indigo-500'
+                        }`}
+                      >
+                        {receiver.avatar ? (
+                          <img src={receiver.avatar} alt={receiver.name} className="w-7 h-7 rounded-lg object-cover" />
+                        ) : (
+                          <div className="w-7 h-7 rounded-lg bg-indigo-950 text-indigo-400 flex items-center justify-center text-[10px] font-black border border-indigo-800 shrink-0">
+                            {receiver.name.split(' ').map(n => n[0]).join('')}
+                          </div>
+                        )}
+                        <div className="truncate">
+                          <div className="font-bold text-[11px] text-white truncate">{receiver.name}</div>
+                          <div className="text-[9px] text-slate-400 font-mono truncate">{receiver.tag}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 

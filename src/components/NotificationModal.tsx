@@ -19,6 +19,7 @@ interface NotificationModalProps {
   notifications: NotificationItem[];
   onMarkAllRead: () => void;
   onMarkRead: (id: string) => void;
+  onClickNotification?: (notification: NotificationItem) => void;
 }
 
 export const NotificationModal: React.FC<NotificationModalProps> = ({
@@ -26,7 +27,8 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
   onClose,
   notifications,
   onMarkAllRead,
-  onMarkRead
+  onMarkRead,
+  onClickNotification
 }) => {
   const [filter, setFilter] = useState<'all' | 'transaction' | 'security' | 'system'>('all');
 
@@ -145,7 +147,12 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
             filtered.map(n => (
               <div
                 key={n.id}
-                onClick={() => onMarkRead(n.id)}
+                onClick={() => {
+                  onMarkRead(n.id);
+                  if (onClickNotification) {
+                    onClickNotification(n);
+                  }
+                }}
                 className={`pt-2.5 first:pt-0 p-3 rounded-2xl transition-all cursor-pointer ${
                   !n.read ? 'bg-indigo-50/60 border border-indigo-100' : 'hover:bg-slate-50 border border-transparent'
                 }`}

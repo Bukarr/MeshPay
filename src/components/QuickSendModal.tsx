@@ -16,7 +16,7 @@ import {
 import { UserProfile, Transaction, Currency } from '../types';
 import { PRESET_ACCOUNTS, INITIAL_NEARBY_PEERS } from '../data/mockData';
 import { getTrustProfile, UserTrustProfile } from '../lib/trustScore';
-import { addTransaction, getStoredUserProfile } from '../lib/storage';
+import { addTransaction, getStoredUserProfile, isUsdAccount } from '../lib/storage';
 import { addNotification } from '../lib/notifications';
 
 interface QuickSendModalProps {
@@ -79,8 +79,10 @@ export const QuickSendModal: React.FC<QuickSendModalProps> = ({
     userIdMatch: 'user_2'
   });
 
-  const [currency, setCurrency] = useState<Currency>('NGN');
-  const [amount, setAmount] = useState<number>(5000);
+  const isUsdUser = isUsdAccount(currentUser);
+
+  const [currency, setCurrency] = useState<Currency>(isUsdUser ? 'USD' : 'NGN');
+  const [amount, setAmount] = useState<number>(isUsdUser ? 50 : 5000);
   const [note, setNote] = useState<string>('Quick Send');
   const [trustProfile, setTrustProfile] = useState<UserTrustProfile>(() => getTrustProfile(selectedContact.tag));
   const [isProcessing, setIsProcessing] = useState(false);

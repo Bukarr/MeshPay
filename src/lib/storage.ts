@@ -1,4 +1,4 @@
-import { Transaction, UserProfile, ExchangeRate, NotificationItem, Currency } from '../types';
+import { Transaction, UserProfile, ExchangeRate, NotificationItem, Currency, RecentReceiver } from '../types';
 import { INITIAL_EXCHANGE_RATE, INITIAL_USER_PROFILE, SECOND_USER_PROFILE, THIRD_USER_PROFILE, PRESET_ACCOUNTS } from '../data/mockData';
 import { generateSvgAvatar } from './avatarHelper';
 import { secureVaultGet, secureVaultSet, secureVaultRemove, verifyVaultIntegrity, isTamperDetected, getLastTamperedKey } from './secureVault';
@@ -9,15 +9,22 @@ const KEYS = {
   USER_PROFILE: 'meshpay_custom_user_profile',
   EXCHANGE_RATE: 'meshpay_exchange_rate',
   LOGGED_IN: 'meshpay_is_logged_in',
-  ACTIVE_PHONE: 'meshpay_active_user_phone'
+  ACTIVE_PHONE: 'meshpay_active_user_phone',
+  RECENT_RECEIVERS: 'meshpay_recent_receivers'
 };
 
 export const INITIAL_BASE_BALANCES: Record<string, { usd: number; ngn: number }> = {
-  '08098765432': { usd: 0.00, ngn: 0.00 }, // Fatima Bello (US Diaspora - USD Account derived strictly from ledger)
-  '08012345678': { usd: 0.00, ngn: 0.00 }, // Adewale Lawson (Nigerian Local - NGN Account derived strictly from ledger)
-  '07011223344': { usd: 0.00, ngn: 0.00 }, // Chinedu Okeke (Multi-Currency Merchant derived strictly from ledger)
+  '08098765432': { usd: 2850.00, ngn: 0.00 }, // Fatima Bello (US Diaspora - USD Account)
+  '08012345678': { usd: 0.00, ngn: 1420000.00 }, // Adewale Lawson (Nigerian Local - NGN Account)
+  '07011223344': { usd: 450.00, ngn: 120000.00 }, // Chinedu Okeke (Multi-Currency Merchant)
   'default':     { usd: 0.00, ngn: 0.00 }
 };
+
+export function isUsdAccount(user: UserProfile): boolean {
+  if (user.primaryCurrency) return user.primaryCurrency === 'USD';
+  if (user.phone === '08098765432' || (user.tag && user.tag.toLowerCase().includes('fatima')) || (user.bankName && user.bankName.toLowerCase().includes('usd'))) return true;
+  return user.usdBalance > 0 || (user.ngnBalance === 0 && Boolean(user.virtualAccountUsd));
+}
 
 export function isUserLoggedIn(): boolean {
   try {
@@ -492,6 +499,65 @@ export function markNotificationRead(id: string, userPhone?: string): void {
   const current = getStoredNotifications(phoneKey);
   const updated = current.map(n => (n.id === id ? { ...n, read: true } : n));
   saveNotifications(updated, phoneKey);
+}
+
+export function getRecentOfflineReceivers(userPhone?: string): RecentReceiver[] {
+  const phoneKey = getUserKeyPrefix(userPhone);
+  const storageKey = `${KEYS.RECENT_RECEIVERS}_${phoneKey}`;
+  const saved = secureVaultGet<RecentReceiver[]>(storageKey, []);
+  if (saved && saved.length > 0) return saved;
+
+  // Default initial recent offline receivers derived from peer history & presets
+  const defaults: RecentReceiver[] = [
+    {
+      id: 'rec_fatima',
+      name: 'Fatima Bello',
+      tag: '@fatima_bello',
+      account: '2098765432',
+      bank: 'First Diaspora Bank (USD)',
+      avatar: SECOND_USER_PROFILE.avatar,
+      lastTransactedAt: 'Yesterday'
+    },
+    {
+      id: 'rec_adewale',
+      name: 'Adewale Lawson',
+      tag: '@adewale_lawson',
+      account: '0123456789',
+      bank: 'Guaranty Trust Bank (NGN)',
+      avatar: INITIAL_USER_PROFILE.avatar,
+      lastTransactedAt: '2 days ago'
+    },
+    {
+      id: 'rec_chinedu',
+      name: 'Chinedu Okeke',
+      tag: '@chinedu_okeke',
+      account: '0701122334',
+      bank: 'Access Bank Plc',
+      avatar: THIRD_USER_PROFILE.avatar,
+      lastTransactedAt: '3 days ago'
+    },
+    {
+      id: 'rec_zainab',
+      name: 'Zainab Dahiru',
+      tag: '@zainab_d',
+      account: '08033445566',
+      bank: 'Kuda Microfinance Bank',
+      avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
+      lastTransactedAt: '5 days ago'
+    }
+  ];
+
+  secureVaultSet(storageKey, defaults);
+  return defaults;
+}
+
+export function saveRecentOfflineReceiver(receiver: RecentReceiver, userPhone?: string): void {
+  const phoneKey = getUserKeyPrefix(userPhone);
+  const storageKey = `${KEYS.RECENT_RECEIVERS}_${phoneKey}`;
+  const current = getRecentOfflineReceivers(phoneKey);
+  const filtered = current.filter(r => r.tag.toLowerCase() !== receiver.tag.toLowerCase() && r.account !== receiver.account);
+  const updated = [{ ...receiver, lastTransactedAt: 'Just now' }, ...filtered].slice(0, 8);
+  secureVaultSet(storageKey, updated);
 }
 
 export function getOfflineQueuedTransactions(): Transaction[] {

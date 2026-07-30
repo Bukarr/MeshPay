@@ -50,6 +50,16 @@ export interface ExchangeRate {
   change24h: number;
 }
 
+export interface RecentReceiver {
+  id: string;
+  name: string;
+  tag: string;
+  account: string;
+  bank: string;
+  avatar?: string;
+  lastTransactedAt?: string;
+}
+
 export interface UserProfile {
   name: string;
   email: string;
@@ -66,6 +76,7 @@ export interface UserProfile {
   biometricEnabled: boolean;
   kycVerified: boolean;
   publicKey: string;
+  primaryCurrency?: 'USD' | 'NGN';
 }
 
 export interface NigerianBank {
